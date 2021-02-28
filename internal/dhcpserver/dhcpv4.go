@@ -165,7 +165,7 @@ func (s *DHCPv4Server) handleRequest(
 
 	// Router
 	resp.Options.Update(
-		dhcpv4.OptRouter(net.IP(dhcpServer.Spec.IPv4.Gateway)))
+		dhcpv4.OptRouter(net.ParseIP(dhcpServer.Spec.IPv4.Gateway)))
 
 	// DNS
 	if len(dhcpServer.Spec.IPv4.NameServers) > 0 &&
