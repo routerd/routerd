@@ -1,0 +1,48 @@
+apiVersion: dhcp.routerd.net/v1alpha1
+kind: DHCPServer
+metadata:
+  name: sample
+spec:
+
+  ipv4:
+    pool:
+      name: sample
+    # subnet: 172.20.0.0/24
+    gateway: 192.168.250.1
+    # range:
+    #   start: 172.20.0.34
+    #   stop: 172.20.0.240
+    nameServers:
+    - 192.168.250.1
+
+  ipv6:
+    pool:
+      name: sample
+    # subnet: "fd9c:fd74:6b8d:1020::/64"
+    gateway: "fd9c:fd74:6b8d:1020::1"
+    nameServers:
+    - "fd9c:fd74:6b8d:1020::1"
+    # range:
+    #   start: fd9c:fd74:6b8d:1020::5
+    #   stop: fd9c:fd74:6b8d:1020:ffff:ffff:ffff:ffff
+
+  networkAttachment:
+    type: Bridge
+    bridge:
+      name: br1
+---
+apiVersion: ipam.routerd.net/v1alpha1
+kind: IPv4Pool
+metadata:
+  name: sample
+spec:
+  cidr: 192.168.250.0/24
+  leaseDuration: 1h
+---
+apiVersion: ipam.routerd.net/v1alpha1
+kind: IPv6Pool
+metadata:
+  name: sample
+spec:
+  cidr: fd9c:fd74:6b8d:1020::/64
+  leaseDuration: 1h
