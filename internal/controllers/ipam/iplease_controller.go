@@ -49,9 +49,6 @@ type IPLeaseReconciler struct {
 	IPLeaseType adapter.IPLease
 }
 
-// +kubebuilder:rbac:groups=ipam.routerd.net,resources=ipleases,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=ipam.routerd.net,resources=ipleases/status,verbs=get;update;patch
-
 func (r *IPLeaseReconciler) Reconcile(
 	ctx context.Context, req ctrl.Request) (res ctrl.Result, err error) {
 	log := r.Log.WithValues("iplease", req.NamespacedName)

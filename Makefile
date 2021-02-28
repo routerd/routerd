@@ -20,6 +20,10 @@ export CGO_ENABLED:=0
 BRANCH=$(shell git rev-parse --abbrev-ref HEAD)
 SHORT_SHA=$(shell git rev-parse --short HEAD)
 VERSION?=${BRANCH}-${SHORT_SHA}
+BUILD_DATE=$(shell date +%s)
+IMAGE_ORG?=quay.io/routerd
+MODULE=routerd.net/routerd
+LD_FLAGS=-X $(MODULE)/internal/version.Version=$(VERSION) -X $(MODULE)/internal/version.Branch=$(BRANCH) -X $(MODULE)/internal/version.Commit=$(SHORT_SHA) -X $(MODULE)/internal/version.BuildDate=$(BUILD_DATE)
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -32,6 +36,18 @@ endif
 # Compile
 # -------
 
+all: \
+	bin/linux_amd64/routerd \
+	bin/linux_amd64/routerd-dhcp
+
+bin/linux_amd64/%: GOARGS = GOOS=linux GOARCH=amd64
+
+bin/%: FORCE
+	$(eval COMPONENT=$(shell basename $*))
+	$(GOARGS) go build -ldflags "-w $(LD_FLAGS)" -o bin/$* cmd/$(COMPONENT)/main.go
+
+FORCE:
+
 clean:
 	rm -rf bin/$*
 .PHONY: clean
@@ -42,20 +58,30 @@ clean:
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run: generate fmt vet manifests
-	go run ./cmd/routerd/main.go
+	go run -ldflags "-w $(LD_FLAGS)" ./cmd/routerd/main.go
+.PHONY: run
 
 # Install CRDs into a cluster
 install: manifests
 	kustomize build config/crd | kubectl apply -f -
+.PHONY: install
 
 # Uninstall CRDs from a cluster
 uninstall: manifests
 	kustomize build config/crd | kubectl delete -f -
+.PHONY: uninstall
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
 deploy: manifests
-	cd config/manager && kustomize edit set image controller=${IMG}
+	cd config/manager && kustomize edit set image controller=${IMAGE_ORG}/routerd:${VERSION}
 	kustomize build config/default | kubectl apply -f -
+.PHONY: deploy
+
+# Remove controller in the configured Kubernetes cluster in ~/.kube/config
+remove: manifests
+	cd config/manager && kustomize edit set image controller=${IMAGE_ORG}/routerd:${VERSION}
+	kustomize build config/default | kubectl delete -f -
+.PHONY: remove
 
 # ----------
 # Generators
@@ -120,3 +146,38 @@ pre-commit-install:
 	@echo "installing pre-commit hooks using https://pre-commit.com/"
 	@pre-commit install
 .PHONY: pre-commit-install
+
+# ----------------
+# Container Images
+# ----------------
+
+build-images: \
+	build-image-radvd \
+	build-image-routerd \
+	build-image-routerd-dhcp
+.PHONY: build-images
+
+push-images: \
+	push-image-radvd \
+	push-image-routerd \
+	push-image-routerd-dhcp
+.PHONY: push-images
+
+build-image-radvd:
+	@mkdir -p bin/image/radvd
+	@cp -a config/docker/radvd.Dockerfile bin/image/radvd/Dockerfile
+	@echo building ${IMAGE_ORG}/radvd:${VERSION}
+	@docker build -t ${IMAGE_ORG}/radvd:${VERSION} bin/image/radvd
+
+.SECONDEXPANSION:
+build-image-%: bin/linux_amd64/$$*
+	@rm -rf bin/image/$*
+	@mkdir -p bin/image/$*
+	@cp -a bin/linux_amd64/$* bin/image/$*
+	@cp -a config/docker/$*.Dockerfile bin/image/$*/Dockerfile
+	@echo building ${IMAGE_ORG}/$*:${VERSION}
+	@docker build -t ${IMAGE_ORG}/$*:${VERSION} bin/image/$*
+
+push-image-%: build-image-$$*
+	@docker push ${IMAGE_ORG}/$*:${VERSION}
+	@echo pushed ${IMAGE_ORG}/$*:${VERSION}

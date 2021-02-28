@@ -59,11 +59,12 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: metricsAddr,
-		Port:               9443,
-		LeaderElection:     enableLeaderElection,
-		LeaderElectionID:   "32bf6c51.routerd.net",
+		Scheme:                     scheme,
+		MetricsBindAddress:         metricsAddr,
+		Port:                       9443,
+		LeaderElectionResourceLock: "leases",
+		LeaderElection:             enableLeaderElection,
+		LeaderElectionID:           "32bf6c51.routerd.net",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")

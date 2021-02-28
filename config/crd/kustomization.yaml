@@ -3,6 +3,10 @@
 # It should be run by config/default
 resources:
 - bases/dhcp.routerd.net_dhcpservers.yaml
+- bases/ipam.routerd.net_ipv4leases.yaml
+- bases/ipam.routerd.net_ipv6leases.yaml
+- bases/ipam.routerd.net_ipv4pools.yaml
+- bases/ipam.routerd.net_ipv6pools.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patchesStrategicMerge:

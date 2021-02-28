@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM scratch
+FROM alpine:3.12
 WORKDIR /
-COPY kube-dhcp .
+RUN apk add --no-cache radvd && mkdir -p /run/radvd
 
-ENTRYPOINT ["/kube-dhcp"]
+ENTRYPOINT ["/usr/sbin/radvd", "--nodaemon"]

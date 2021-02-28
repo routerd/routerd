@@ -19,9 +19,9 @@ spec:
     pool:
       name: sample
     # subnet: "fd9c:fd74:6b8d:1020::/64"
-    gateway: "fd9c:fd74:6b8d:1020::1"
+    gateway: "fde4:fa92:1362:78a7::1"
     nameServers:
-    - "fd9c:fd74:6b8d:1020::1"
+    - "fde4:fa92:1362:78a7::1"
     # range:
     #   start: fd9c:fd74:6b8d:1020::5
     #   stop: fd9c:fd74:6b8d:1020:ffff:ffff:ffff:ffff
@@ -44,5 +44,5 @@ kind: IPv6Pool
 metadata:
   name: sample
 spec:
-  cidr: fd9c:fd74:6b8d:1020::/64
+  cidr: fde4:fa92:1362:78a7::/64
   leaseDuration: 1h

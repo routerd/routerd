@@ -17,6 +17,9 @@ limitations under the License.
 package dhcp
 
 import (
+	"fmt"
+	"net"
+
 	netv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -26,6 +29,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	dhcpv1alpha1 "routerd.net/routerd/apis/dhcp/v1alpha1"
+	ipamv1alpha1 "routerd.net/routerd/apis/ipam/v1alpha1"
+	"routerd.net/routerd/internal/version"
 )
 
 const networksAnnotations = "k8s.v1.cni.cncf.io/networks"
@@ -33,7 +38,9 @@ const networksAnnotations = "k8s.v1.cni.cncf.io/networks"
 func deployment(
 	scheme *runtime.Scheme,
 	dhcpServer *dhcpv1alpha1.DHCPServer,
+	ipv6pool *ipamv1alpha1.IPv6Pool,
 	nad *netv1.NetworkAttachmentDefinition,
+	sa *corev1.ServiceAccount,
 ) (*appsv1.Deployment, error) {
 	env := []corev1.EnvVar{
 		{Name: "DHCP_BIND_INTERFACE", Value: "net1"},
@@ -47,6 +54,7 @@ func deployment(
 			},
 		},
 	}
+	var containers []corev1.Container
 
 	if dhcpServer.Spec.IPv4 != nil {
 		env = append(env, corev1.EnvVar{
@@ -55,11 +63,55 @@ func deployment(
 		})
 	}
 	if dhcpServer.Spec.IPv6 != nil {
-		env = append(env, corev1.EnvVar{
-			Name:  "DHCP_ENABLE_IPv6",
-			Value: "True",
+		env = append(env,
+			corev1.EnvVar{
+				Name:  "DHCP_ENABLE_IPv6",
+				Value: "True",
+			})
+
+		_, subnet, _ := net.ParseCIDR(ipv6pool.Spec.CIDR)
+		gateway := &net.IPNet{
+			IP:   net.ParseIP(dhcpServer.Spec.IPv6.Gateway),
+			Mask: subnet.Mask,
+		}
+		radvdConfig := fmt.Sprintf(`interface net1
+{
+	AdvSendAdvert on;
+	AdvManagedFlag on;
+	AdvOtherConfigFlag on;
+	
+	prefix %s
+	{
+		AdvOnLink on;
+		AdvRouterAddr on;
+	};
+};`, gateway.String())
+
+		containers = append(containers, corev1.Container{
+			ImagePullPolicy: corev1.PullAlways,
+			Name:            "radvd",
+			Image:           "quay.io/routerd/radvd:" + version.Version,
+			SecurityContext: &corev1.SecurityContext{
+				Capabilities: &corev1.Capabilities{
+					Add: []corev1.Capability{"NET_RAW"},
+				},
+			},
+			Env: []corev1.EnvVar{
+				{
+					Name:  "RADVD_CONFIG",
+					Value: radvdConfig,
+				},
+			},
+			Command: []string{
+				"bin/ash", "-c", `echo "$RADVD_CONFIG" > /etc/radvd.conf && exec radvd -n`},
 		})
 	}
+	containers = append(containers, corev1.Container{
+		ImagePullPolicy: corev1.PullAlways,
+		Name:            "dhcp-server",
+		Image:           "quay.io/routerd/routerd-dhcp:" + version.Version,
+		Env:             env,
+	})
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -84,14 +136,8 @@ func deployment(
 					},
 				},
 				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							ImagePullPolicy: corev1.PullAlways,
-							Name:            "dhcp-server",
-							Image:           "quay.io/routerd/kube-dhcp:implementation-10cfe61",
-							Env:             env,
-						},
-					},
+					ServiceAccountName: sa.Name,
+					Containers:         containers,
 				},
 			},
 		},

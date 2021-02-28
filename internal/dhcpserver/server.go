@@ -40,11 +40,10 @@ type Config struct {
 }
 
 const (
-	// we poll against the cache,
-	// so this number could be even lower
-	leasePollInterval = 500 * time.Millisecond
+	// we poll against the cache, so this number can be very lower
+	leasePollInterval = 100 * time.Millisecond
 	// how long we waat for the lease to be Bound until we give up.
-	leaseAcquireTimeout = 6 * time.Second
+	leaseAcquireTimeout = 2 * time.Second
 )
 
 func stringSliceToIPSlice(ipstrings []string) []net.IP {

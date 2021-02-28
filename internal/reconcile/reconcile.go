@@ -19,6 +19,8 @@ package reconcile
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -64,4 +66,42 @@ func IPv6Lease(
 	}
 
 	return currentIPLease, nil
+}
+
+func ServiceAccount(
+	ctx context.Context,
+	c client.Client, sa *corev1.ServiceAccount,
+) (*corev1.ServiceAccount, error) {
+	currentSA := &corev1.ServiceAccount{}
+	err := c.Get(ctx, types.NamespacedName{
+		Name:      sa.Name,
+		Namespace: sa.Namespace,
+	}, currentSA)
+	if errors.IsNotFound(err) {
+		return sa, c.Create(ctx, sa)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return currentSA, nil
+}
+
+func RoleBinding(
+	ctx context.Context,
+	c client.Client, sa *rbacv1.RoleBinding,
+) (*rbacv1.RoleBinding, error) {
+	currentSA := &rbacv1.RoleBinding{}
+	err := c.Get(ctx, types.NamespacedName{
+		Name:      sa.Name,
+		Namespace: sa.Namespace,
+	}, currentSA)
+	if errors.IsNotFound(err) {
+		return sa, c.Create(ctx, sa)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return currentSA, nil
 }

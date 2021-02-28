@@ -268,14 +268,15 @@ func (s *DHCPv6Server) ensureLease(
 		},
 	}
 
-	fqdn := msg.Options.FQDN()
-	if fqdn != nil {
-		host := fqdn.String()
+	fqdnOpt := msg.Options.FQDN()
+	if fqdnOpt != nil {
+		fqdn := strings.Join(fqdnOpt.DomainName.Labels, ".")
+		host := fqdn
 		if i := strings.Index(host, "."); i != -1 {
 			host = host[:i]
 		}
 
-		lease.Labels[dhcpFQDNLabel] = fqdn.String()
+		lease.Labels[dhcpFQDNLabel] = fqdn
 		lease.Labels[dhcpHostLabel] = host
 	}
 	if err := controllerutil.SetOwnerReference(

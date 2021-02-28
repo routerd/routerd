@@ -27,6 +27,8 @@ import (
 	"github.com/go-logr/logr"
 	netv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,10 +49,6 @@ type DHCPServerReconciler struct {
 	Log    logr.Logger
 	Scheme *runtime.Scheme
 }
-
-// +kubebuilder:rbac:groups=k8s.cni.cncf.io,resources=networkattachmentdefinitions,verbs=get;list;watch;delete;update;create
-// +kubebuilder:rbac:groups=dhcp.routerd.net,resources=dhcpservers,verbs=get;list;watch
-// +kubebuilder:rbac:groups=dhcp.routerd.net,resources=dhcpservers/status,verbs=get;update;patch
 
 func (r *DHCPServerReconciler) Reconcile(
 	ctx context.Context, req ctrl.Request) (res ctrl.Result, err error) {
@@ -228,6 +226,9 @@ func (r *DHCPServerReconciler) Reconcile(
 		default:
 			unreadyDHCPIPLease = append(unreadyDHCPIPLease, ipv4GatewayLease.Name)
 		}
+		if leaseDuration := ipv4DHCPLease.Status.LeaseDuration; leaseDuration != nil {
+			res.RequeueAfter = leaseDuration.Duration / 2
+		}
 	}
 	if ipv6DHCPLease != nil {
 		switch {
@@ -241,6 +242,9 @@ func (r *DHCPServerReconciler) Reconcile(
 
 		default:
 			unreadyDHCPIPLease = append(unreadyDHCPIPLease, ipv6GatewayLease.Name)
+		}
+		if leaseDuration := ipv6DHCPLease.Status.LeaseDuration; leaseDuration != nil {
+			res.RequeueAfter = leaseDuration.Duration / 2
 		}
 	}
 	if len(failedDHCPIPLease) > 0 {
@@ -277,6 +281,39 @@ func (r *DHCPServerReconciler) Reconcile(
 	// Phase 4.
 	// Create NAD and Deployment
 
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      dhcpServer.Name + "dhcp-server",
+			Namespace: dhcpServer.Namespace,
+		},
+	}
+	_, err = reconcile.ServiceAccount(ctx, r.Client, sa)
+	if err != nil {
+		return res, fmt.Errorf("reconcile ServiceAccount: %w", err)
+	}
+
+	roleBinding := &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      sa.Name,
+			Namespace: sa.Namespace,
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind: "ServiceAccount",
+				Name: sa.Name,
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "ClusterRole",
+			Name:     "routerd-dhcp-role",
+		},
+	}
+	_, err = reconcile.RoleBinding(ctx, r.Client, roleBinding)
+	if err != nil {
+		return res, fmt.Errorf("reconcile RoleBinding: %w", err)
+	}
+
 	// NetworkAttachmentDefinition
 	nad, err := r.ensureNetworkAttachmentDefinition(
 		ctx, dhcpServer, ipv4DHCPLease, ipv6DHCPLease, ipv4Pool, ipv6Pool)
@@ -284,7 +321,7 @@ func (r *DHCPServerReconciler) Reconcile(
 		return res, err
 	}
 
-	deploy, stop, err := r.ensureDeployment(ctx, dhcpServer, nad)
+	deploy, stop, err := r.ensureDeployment(ctx, dhcpServer, ipv6Pool, nad, sa)
 	if err != nil {
 		return res, err
 	} else if stop {
@@ -594,9 +631,11 @@ func (r *DHCPServerReconciler) ensureNetworkAttachmentDefinition(
 func (r *DHCPServerReconciler) ensureDeployment(
 	ctx context.Context,
 	dhcpServer *dhcpv1alpha1.DHCPServer,
+	ipv6pool *ipamv1alpha1.IPv6Pool,
 	nad *netv1.NetworkAttachmentDefinition,
+	sa *corev1.ServiceAccount,
 ) (_ *appsv1.Deployment, stop bool, err error) {
-	deploy, err := deployment(r.Scheme, dhcpServer, nad)
+	deploy, err := deployment(r.Scheme, dhcpServer, ipv6pool, nad, sa)
 	if err != nil {
 		return nil, false, fmt.Errorf("preparing Deployment: %w", err)
 	}
