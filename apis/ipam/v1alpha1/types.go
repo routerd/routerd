@@ -30,10 +30,12 @@ type IPLeaseType string
 
 const (
 	// Static IP Address allocation.
-	// The Lease will only successfully bind if the requested IPs are not yet occupied.
+	// Allocates an IP Address without respecting the pools LeaseDuration.
+	// Will try to allocate the requested static address if supplied.
 	IPLeaseTypeStatic = "Static"
 	// Dynamic IP Address allocation.
-	// Acquire any free IP address from the selected pool.
+	// Acquire any free IP address from the selected pool and respect LeaseDuration.
+	// IP addresses will be returned to the Pool if not renewed in time.
 	IPLeaseTypeDynamic = "Dynamic"
 )
 

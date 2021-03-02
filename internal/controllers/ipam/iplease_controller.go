@@ -124,12 +124,22 @@ func (r *IPLeaseReconciler) allocateIPs(
 
 	switch iplease.GetSpecType() {
 	case ipamv1alpha1.IPLeaseTypeDynamic:
+		// Make sure we report the Lease Duration if set on pool.
+		if leaseDuration, ok := ippool.GetSpecLeaseDuration(); ok {
+			iplease.SetStatusLeaseDuration(leaseDuration)
+		}
+
 		log.Info("trying allocating dynamic ip from pool")
 		return r.allocateDynamicIPs(ctx, ipam, iplease, ippool)
 
 	case ipamv1alpha1.IPLeaseTypeStatic:
-		log.Info("trying allocating static ip from lease")
-		return r.allocateStaticIPs(ctx, ipam, iplease, ippool)
+		if len(iplease.GetSpecStaticAddress()) > 0 {
+			log.Info("trying allocating static ip from lease")
+			return r.allocateStaticIPs(ctx, ipam, iplease, ippool)
+		}
+
+		log.Info("trying allocating dynamic ip from pool for a static lease")
+		return r.allocateDynamicIPs(ctx, ipam, iplease, ippool)
 	}
 	log.Info("WARNING unknown IPLeaseType", "type", iplease.GetSpecType())
 	return ctrl.Result{}, nil
@@ -172,11 +182,6 @@ func (r *IPLeaseReconciler) allocateDynamicIPs(
 	ctx context.Context, ipam Ipamer,
 	iplease adapter.IPLease, ippool adapter.IPPool,
 ) (res ctrl.Result, err error) {
-	// Make sure we report the Lease Duration if set on pool.
-	if leaseDuration, ok := ippool.GetSpecLeaseDuration(); ok {
-		iplease.SetStatusLeaseDuration(leaseDuration)
-	}
-
 	ip, err := ipam.AcquireIP(ippool.GetCIDR())
 	if err != nil && !errors.Is(err, goipam.ErrNoIPAvailable) {
 		return ctrl.Result{}, err
