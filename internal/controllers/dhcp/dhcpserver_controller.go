@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"time"
 
 	"github.com/go-logr/logr"
 	netv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
@@ -226,9 +225,6 @@ func (r *DHCPServerReconciler) Reconcile(
 		default:
 			unreadyDHCPIPLease = append(unreadyDHCPIPLease, ipv4GatewayLease.Name)
 		}
-		if leaseDuration := ipv4DHCPLease.Status.LeaseDuration; leaseDuration != nil {
-			res.RequeueAfter = leaseDuration.Duration / 2
-		}
 	}
 	if ipv6DHCPLease != nil {
 		switch {
@@ -242,9 +238,6 @@ func (r *DHCPServerReconciler) Reconcile(
 
 		default:
 			unreadyDHCPIPLease = append(unreadyDHCPIPLease, ipv6GatewayLease.Name)
-		}
-		if leaseDuration := ipv6DHCPLease.Status.LeaseDuration; leaseDuration != nil {
-			res.RequeueAfter = leaseDuration.Duration / 2
 		}
 	}
 	if len(failedDHCPIPLease) > 0 {
@@ -462,7 +455,7 @@ func (r *DHCPServerReconciler) ensureIPv4Lease(
 			Pool: ipamv1alpha1.LocalObjectReference{
 				Name: ippool.Name,
 			},
-			Type: ipamv1alpha1.IPLeaseTypeDynamic,
+			Type: ipamv1alpha1.IPLeaseTypeStatic,
 		},
 	}
 	addCommonLabels(iplease.Labels, dhcpServer)
@@ -474,24 +467,6 @@ func (r *DHCPServerReconciler) ensureIPv4Lease(
 	if err != nil {
 		return nil, fmt.Errorf("reconciling gateway IPLease: %w", err)
 	}
-	if !meta.IsStatusConditionTrue(
-		currentIPLease.Status.Conditions,
-		ipamv1alpha1.IPLeaseBound) {
-		// Static IPLease is not yet ready
-		return currentIPLease, nil
-	}
-
-	// renew lease
-	if currentIPLease.Spec.RenewTime.IsZero() ||
-		currentIPLease.Spec.RenewTime.Time.UTC().Add(10*time.Second).Before(time.Now().UTC()) {
-		// only renew if never renewed before or if last renew is >10s old
-		// the 10s timeout is to ensure we are not renewing instantly and all the time.
-		currentIPLease.Spec.RenewTime = metav1.NowMicro()
-		if err := r.Update(ctx, currentIPLease); err != nil {
-			return nil, err
-		}
-	}
-
 	return currentIPLease, nil
 }
 
@@ -515,7 +490,7 @@ func (r *DHCPServerReconciler) ensureIPv6Lease(
 			Pool: ipamv1alpha1.LocalObjectReference{
 				Name: ippool.Name,
 			},
-			Type: ipamv1alpha1.IPLeaseTypeDynamic,
+			Type: ipamv1alpha1.IPLeaseTypeStatic,
 		},
 	}
 	addCommonLabels(iplease.Labels, dhcpServer)
@@ -527,24 +502,6 @@ func (r *DHCPServerReconciler) ensureIPv6Lease(
 	if err != nil {
 		return nil, fmt.Errorf("reconciling gateway IPLease: %w", err)
 	}
-	if !meta.IsStatusConditionTrue(
-		currentIPLease.Status.Conditions,
-		ipamv1alpha1.IPLeaseBound) {
-		// Static IPLease is not yet ready
-		return currentIPLease, nil
-	}
-
-	// renew lease
-	if currentIPLease.Spec.RenewTime.IsZero() ||
-		currentIPLease.Spec.RenewTime.Time.UTC().Add(10*time.Second).Before(time.Now().UTC()) {
-		// only renew if never renewed before or if last renew is >10s old
-		// the 10s timeout is to ensure we are not renewing instantly and all the time.
-		currentIPLease.Spec.RenewTime = metav1.NowMicro()
-		if err := r.Update(ctx, currentIPLease); err != nil {
-			return nil, err
-		}
-	}
-
 	return currentIPLease, nil
 }
 
