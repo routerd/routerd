@@ -79,7 +79,7 @@ func deployment(
 	AdvSendAdvert on;
 	AdvManagedFlag on;
 	AdvOtherConfigFlag on;
-	
+
 	prefix %s
 	{
 		AdvOnLink on;
