@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: quay.io/routerd/routerd
-  newTag: main-9889e86
+  newTag: main-7a32751
