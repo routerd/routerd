@@ -53,8 +53,9 @@ spec:
                 description: Subnet CIDR that this Pool is managing.
                 type: string
               leaseDuration:
-                description: Lease duration for leased ips. IPLease must be renewed
-                  in time or it will be deleted and reclaimed into the pool.
+                description: Lease duration for leased ips. IPv4Leases of type "Dynamic"
+                  must be renewed in time or will be deleted and reclaimed into the
+                  pool.
                 type: string
             required:
             - cidr
