@@ -14,20 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package coredns
 
 import (
 	"fmt"
 	"os"
 
+	"github.com/coredns/caddy"
+	"github.com/coredns/coredns/core/dnsserver"
+	"github.com/coredns/coredns/plugin"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	dhcpv1alpha1 "routerd.net/routerd/apis/dhcp/v1alpha1"
-	ipamv1alpha1 "routerd.net/routerd/apis/ipam/v1alpha1"
-	"routerd.net/routerd/internal/dhcpserver"
+	dnsv1alpha1 "routerd.net/routerd/apis/dns/v1alpha1"
 )
 
 var (
@@ -37,27 +38,31 @@ var (
 
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
-	_ = dhcpv1alpha1.AddToScheme(scheme)
-	_ = ipamv1alpha1.AddToScheme(scheme)
+	_ = dnsv1alpha1.AddToScheme(scheme)
+
+	plugin.Register(pluginName, setup)
 }
 
-func main() {
+func setup(c *caddy.Controller) error {
+	c.Next()
+	if c.NextArg() {
+		return plugin.Error(pluginName, c.ArgErr())
+	}
+
 	var (
 		// Kubernetes Namespace this DHCP Server is deployed in.
 		namespace = os.Getenv("KUBERNETES_NAMESPACE")
-		// Interface Name the DHCP Server should bind to.
-		bindInterface = os.Getenv("DHCP_BIND_INTERFACE")
-		// Name of the DHCPServer object in Kubernetes.
-		dhcpServerName = os.Getenv("DHCP_SERVER_NAME")
-		dhcpEnableIPv4 = os.Getenv("DHCP_ENABLE_IPv4")
-		dhcpEnableIPv6 = os.Getenv("DHCP_ENABLE_IPv6")
+		// // Interface Name the DHCP Server should bind to.
+		// bindInterface = os.Getenv("DHCP_BIND_INTERFACE")
+		// // Name of the DHCPServer object in Kubernetes.
+		// dhcpServerName = os.Getenv("DHCP_SERVER_NAME")
+		// dhcpEnableIPv4 = os.Getenv("DHCP_ENABLE_IPv4")
+		// dhcpEnableIPv6 = os.Getenv("DHCP_ENABLE_IPv6")
 	)
 
-	if len(namespace) == 0 ||
-		len(bindInterface) == 0 ||
-		len(dhcpServerName) == 0 {
+	if len(namespace) == 0 {
 		err := fmt.Errorf(
-			"env vars KUBERNETES_NAMESPACE, DHCP_BIND_INTERFACE and DHCP_SERVER_NAME are required")
+			"env vars KUBERNETES_NAMESPACE are required")
 		exitOnError("invalid configuration:", err)
 	}
 
@@ -71,29 +76,23 @@ func main() {
 	})
 	exitOnError("creating manager", err)
 
-	serverConfig := dhcpserver.Config{
-		BindInterface:  bindInterface,
-		Namespace:      namespace,
-		DHCPServerName: dhcpServerName,
+	routerdPlugin := newRouterdPlugin(mgr.GetClient(), ctrl.Log.WithName("dns"))
+	if err := routerdPlugin.SetupWithManager(mgr); err != nil {
+		exitOnError("unable to create dns controller", err)
 	}
 
-	if len(dhcpEnableIPv4) > 0 {
-		dhcpv4Server := dhcpserver.NewDHCPv4Server(
-			ctrl.Log.WithName("dhcpv4"), mgr.GetClient(),
-			serverConfig,
-		)
-		exitOnError("adding dhcpv4 server to manager", mgr.Add(dhcpv4Server))
-	}
-	if len(dhcpEnableIPv6) > 0 {
-		dhcpv6Server := dhcpserver.NewDHCPv6Server(
-			ctrl.Log.WithName("dhcpv6"), mgr.GetClient(),
-			serverConfig,
-		)
-		exitOnError("adding dhcpv6 server to manager", mgr.Add(dhcpv6Server))
-	}
+	go func() {
+		setupLog.Info("starting manager")
+		if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+			exitOnError("problem running manager", err)
+		}
+	}()
 
-	setupLog.Info("starting DHCP server")
-	exitOnError("starting DHCP server", mgr.Start(ctrl.SetupSignalHandler()))
+	dnsserver.GetConfig(c).AddPlugin(func(next plugin.Handler) plugin.Handler {
+		routerdPlugin.Next = next
+		return routerdPlugin
+	})
+	return nil
 }
 
 func exitOnError(msg string, err error) {

@@ -32,6 +32,11 @@ type SOARecord struct {
 	NegativeTTL metav1.Duration `json:"negativeTTL"`
 }
 
+type ZoneConfig struct {
+	// start of authority record
+	SOA SOARecord `json:"soa"`
+}
+
 // Zone is the Schema for the zones API
 // +kubebuilder:object:root=true
 // +kubebuilder:printcolumn:name="Master",type="string",JSONPath=".zone.soa.master"
@@ -41,8 +46,7 @@ type Zone struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// start of authority record
-	SOA SOARecord `json:"soa"`
+	ZoneConfig `json:"zone"`
 }
 
 // ZoneList contains a list of Zone

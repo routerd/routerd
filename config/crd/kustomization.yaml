@@ -7,6 +7,9 @@ resources:
 - bases/ipam.routerd.net_ipv6leases.yaml
 - bases/ipam.routerd.net_ipv4pools.yaml
 - bases/ipam.routerd.net_ipv6pools.yaml
+- bases/dns.routerd.net_dnsservers.yaml
+- bases/dns.routerd.net_recordsets.yaml
+- bases/dns.routerd.net_zones.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patchesStrategicMerge:

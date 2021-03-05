@@ -1,0 +1,91 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.2.5
+  creationTimestamp: null
+  name: zones.dns.routerd.net
+spec:
+  group: dns.routerd.net
+  names:
+    kind: Zone
+    listKind: ZoneList
+    plural: zones
+    singular: zone
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .zone.soa.master
+      name: Master
+      type: string
+    - jsonPath: .zone.soa.admin
+      name: Admin
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Zone is the Schema for the zones API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          zone:
+            properties:
+              soa:
+                description: start of authority record
+                properties:
+                  admin:
+                    type: string
+                  expire:
+                    type: string
+                  master:
+                    type: string
+                  negativeTTL:
+                    type: string
+                  refresh:
+                    type: string
+                  retry:
+                    type: string
+                  serial:
+                    type: integer
+                  ttl:
+                    type: string
+                required:
+                - admin
+                - expire
+                - master
+                - negativeTTL
+                - refresh
+                - retry
+                - serial
+                - ttl
+                type: object
+            required:
+            - soa
+            type: object
+        required:
+        - zone
+        type: object
+    served: true
+    storage: true
+    subresources: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

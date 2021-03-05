@@ -1,0 +1,5 @@
+.:1053 {
+  log
+  routerd
+  loop
+}

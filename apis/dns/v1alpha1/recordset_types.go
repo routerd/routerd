@@ -106,15 +106,7 @@ func (srv SRV) String() string {
 	return fmt.Sprintf("%d %d %d %s", srv.Priority, srv.Weight, srv.Port, srv.Host)
 }
 
-// RecordSet is the Schema for the recordsets API
-// +kubebuilder:object:root=true
-// +kubebuilder:printcolumn:name="DNS Name",type="string",JSONPath=".record.dnsName"
-// +kubebuilder:printcolumn:name="Type",type="string",JSONPath=".record.type"
-// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
-type RecordSet struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
+type RecordSetConfig struct {
 	// DNS_NAME that this record belongs to.
 	// must be fully qualified.
 	// must belong to a existing Zone object.
@@ -139,6 +131,18 @@ type RecordSet struct {
 	MX []MX `json:"mx,omitempty"`
 	// SRV record, list of SRV records.
 	SRV []SRV `json:"srv,omitempty"`
+}
+
+// RecordSet is the Schema for the recordsets API
+// +kubebuilder:object:root=true
+// +kubebuilder:printcolumn:name="DNS Name",type="string",JSONPath=".recordSet.dnsName"
+// +kubebuilder:printcolumn:name="Type",type="string",JSONPath=".recordSet.type"
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
+type RecordSet struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	RecordSetConfig `json:"recordSet"`
 }
 
 // RecordSetList contains a list of RecordSet

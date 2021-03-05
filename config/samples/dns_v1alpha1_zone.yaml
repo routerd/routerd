@@ -1,0 +1,15 @@
+apiVersion: dns.routerd.net/v1alpha1
+kind: Zone
+metadata:
+  name: thetechnick.ninja
+zone:
+  soa:
+    ttl: 100s
+    master: ns1.thetechnick.ninja
+    admin: hostmaster.thetechnick.ninja
+    # below are defaults
+    refresh: 24h
+    retry: 2h
+    expire: 1000h
+    negativeTTL: 48h
+    serial: 0
