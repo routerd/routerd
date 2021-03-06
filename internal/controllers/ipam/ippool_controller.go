@@ -18,6 +18,7 @@ package ipam
 
 import (
 	"context"
+	"net"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -150,8 +151,8 @@ func (r *IPPoolReconciler) createIPAM(
 			continue
 		}
 
-		_, err := ipam.AcquireSpecificIP(
-			ippool.GetCIDR(), iplease.GetStatusAddress())
+		ip, _, _ := net.ParseCIDR(iplease.GetStatusAddress())
+		_, err := ipam.AcquireSpecificIP(ippool.GetCIDR(), ip.String())
 		if err != nil {
 			return ipam, err
 		}

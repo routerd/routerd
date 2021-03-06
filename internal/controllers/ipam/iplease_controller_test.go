@@ -131,7 +131,7 @@ func TestIPLeaseReconciler(t *testing.T) {
 		assert.Empty(t, res.RequeueAfter)
 
 		assert.Equal(t,
-			ipv4.IP.String(), leaseStatusUpdate.Status.Address)
+			ipv4.IP.String()+"/24", leaseStatusUpdate.Status.Address)
 		assert.Nil(t, leaseStatusUpdate.Status.LeaseDuration)
 	})
 
@@ -210,7 +210,7 @@ func TestIPLeaseReconciler(t *testing.T) {
 		assert.Empty(t, res.RequeueAfter)
 
 		assert.Equal(t,
-			ipv4.IP.String(), leaseStatusUpdate.Status.Address)
+			ipv4.IP.String()+"/24", leaseStatusUpdate.Status.Address)
 		assert.Nil(t, leaseStatusUpdate.Status.LeaseDuration)
 	})
 
@@ -290,7 +290,7 @@ func TestIPLeaseReconciler(t *testing.T) {
 		assert.Equal(t, leaseDuration, res.RequeueAfter)
 
 		assert.Equal(t,
-			ipv4.IP.String(), leaseStatusUpdate.Status.Address)
+			ipv4.IP.String()+"/24", leaseStatusUpdate.Status.Address)
 		if assert.NotNil(t, leaseStatusUpdate.Status.LeaseDuration) {
 			assert.Equal(
 				t, leaseDuration,

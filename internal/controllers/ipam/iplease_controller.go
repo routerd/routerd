@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -154,11 +155,19 @@ func (r *IPLeaseReconciler) allocateStaticIPs(
 	ctx context.Context, ipam Ipamer,
 	iplease adapter.IPLease, ippool adapter.IPPool,
 ) (res ctrl.Result, err error) {
+	_, ipnet, err := net.ParseCIDR(ippool.GetCIDR())
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("parsing pool CIDR: %w", err)
+	}
 
 	ip, err := ipam.AcquireSpecificIP(
 		ippool.GetCIDR(), iplease.GetSpecStaticAddress())
 	if err != nil && !errors.Is(err, goipam.ErrNoIPAvailable) {
 		return res, err
+	}
+	ipWithMask := net.IPNet{
+		IP:   ip.IP.IPAddr().IP,
+		Mask: ipnet.Mask,
 	}
 
 	if errors.Is(err, goipam.ErrNoIPAvailable) ||
@@ -180,16 +189,25 @@ func (r *IPLeaseReconciler) allocateStaticIPs(
 		}, r.Status().Update(ctx, iplease.ClientObject())
 	}
 
-	return ctrl.Result{}, r.reportAllocatedIPs(ctx, iplease, ipam, ip)
+	return ctrl.Result{}, r.reportAllocatedIPs(ctx, iplease, ippool, ipam, ipWithMask)
 }
 
 func (r *IPLeaseReconciler) allocateDynamicIPs(
 	ctx context.Context, ipam Ipamer,
 	iplease adapter.IPLease, ippool adapter.IPPool,
 ) (res ctrl.Result, err error) {
+	_, ipnet, err := net.ParseCIDR(ippool.GetCIDR())
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("parsing pool CIDR: %w", err)
+	}
+
 	ip, err := ipam.AcquireIP(ippool.GetCIDR())
 	if err != nil && !errors.Is(err, goipam.ErrNoIPAvailable) {
 		return ctrl.Result{}, err
+	}
+	ipWithMask := net.IPNet{
+		IP:   ip.IP.IPAddr().IP,
+		Mask: ipnet.Mask,
 	}
 
 	if errors.Is(err, goipam.ErrNoIPAvailable) {
@@ -208,14 +226,14 @@ func (r *IPLeaseReconciler) allocateDynamicIPs(
 		}, r.Status().Update(ctx, iplease.ClientObject())
 	}
 
-	return ctrl.Result{}, r.reportAllocatedIPs(ctx, iplease, ipam, ip)
+	return ctrl.Result{}, r.reportAllocatedIPs(ctx, iplease, ippool, ipam, ipWithMask)
 }
 
 func (r *IPLeaseReconciler) reportAllocatedIPs(
 	ctx context.Context, iplease adapter.IPLease,
-	ipam Ipamer, allocatedIP *goipam.IP,
+	ippool adapter.IPPool, ipam Ipamer, allocatedIP net.IPNet,
 ) error {
-	iplease.SetStatusAddress(allocatedIP.IP.String())
+	iplease.SetStatusAddress(allocatedIP.String())
 	iplease.SetStatusPhase("Bound")
 
 	iplease.SetStatusObservedGeneration(iplease.GetGeneration())
@@ -228,7 +246,7 @@ func (r *IPLeaseReconciler) reportAllocatedIPs(
 	})
 	if err := r.Status().Update(ctx, iplease.ClientObject()); err != nil {
 		// ensure to free IP again if we fail to commit to storage
-		_, _ = ipam.ReleaseIP(allocatedIP)
+		_ = ipam.ReleaseIPFromPrefix(ippool.GetCIDR(), allocatedIP.IP.String())
 		return err
 	}
 	return nil
@@ -288,14 +306,15 @@ func (r *IPLeaseReconciler) ensureCacheFinalizerAndOwner(ctx context.Context, ip
 }
 
 func (r *IPLeaseReconciler) freeLease(
-	log logr.Logger,
-	ippool adapter.IPPool, iplease adapter.IPLease) error {
+	log logr.Logger, ippool adapter.IPPool, iplease adapter.IPLease,
+) error {
 	ipam, ok := r.IPAMCache.Get(ippool)
 	if !ok {
 		return nil
 	}
 
-	err := ipam.ReleaseIPFromPrefix(ippool.GetCIDR(), iplease.GetStatusAddress())
+	ip, _, _ := net.ParseCIDR(iplease.GetStatusAddress())
+	err := ipam.ReleaseIPFromPrefix(ippool.GetCIDR(), ip.String())
 	if errors.Is(err, goipam.ErrNotFound) {
 		return nil
 	}

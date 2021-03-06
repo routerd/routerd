@@ -48,7 +48,7 @@ type IPv6LeaseStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 	// Human readable status aggregated from conditions.
 	Phase string `json:"phase,omitempty"`
-	// Leased IP Address.
+	// Leased IP Address in CIDR notation.
 	Address string `json:"address,omitempty"`
 	// Duration of the lease, if empty lease does not expire.
 	LeaseDuration *metav1.Duration `json:"leaseDuration,omitempty"`
