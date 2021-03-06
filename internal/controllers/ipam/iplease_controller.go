@@ -59,6 +59,11 @@ func (r *IPLeaseReconciler) Reconcile(
 		return res, client.IgnoreNotFound(err)
 	}
 	defer func() {
+		if !iplease.GetDeletionTimestamp.IsZero() {
+			// don't requeue deleted IPleases.
+			return
+		}
+
 		// ensure that no matter how we exit the reconcile function,
 		// we want to reconcile the IPLease after the lease duration expired.
 		leaseDuration, ok := iplease.GetStatusLeaseDuration()
@@ -200,7 +205,7 @@ func (r *IPLeaseReconciler) allocateDynamicIPs(
 		return ctrl.Result{
 			// Retry to allocate later.
 			RequeueAfter: 5 * time.Second,
-		}, nil
+		}, r.Status().Update(ctx, iplease.ClientObject())
 	}
 
 	return ctrl.Result{}, r.reportAllocatedIPs(ctx, iplease, ipam, ip)
