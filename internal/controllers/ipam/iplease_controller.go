@@ -59,7 +59,7 @@ func (r *IPLeaseReconciler) Reconcile(
 		return res, client.IgnoreNotFound(err)
 	}
 	defer func() {
-		if !iplease.GetDeletionTimestamp.IsZero() {
+		if !iplease.GetDeletionTimestamp().IsZero() {
 			// don't requeue deleted IPleases.
 			return
 		}
