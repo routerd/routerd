@@ -93,7 +93,7 @@ spec:
             description: IPv4LeaseStatus defines the observed state of IPv4Lease
             properties:
               address:
-                description: Leased IP Address
+                description: Leased IP Address in CIDR notation.
                 type: string
               conditions:
                 description: Conditions is a list of status conditions ths object

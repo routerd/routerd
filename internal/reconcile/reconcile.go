@@ -19,8 +19,10 @@ package reconcile
 import (
 	"context"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -104,4 +106,29 @@ func RoleBinding(
 	}
 
 	return currentSA, nil
+}
+
+func Deployment(
+	ctx context.Context,
+	c client.Client, deploy *appsv1.Deployment,
+) (currentDeploy *appsv1.Deployment, err error) {
+	currentDeploy = &appsv1.Deployment{}
+	err = c.Get(ctx, types.NamespacedName{
+		Name:      deploy.Name,
+		Namespace: deploy.Namespace,
+	}, currentDeploy)
+	if errors.IsNotFound(err) {
+		return deploy, c.Create(ctx, deploy)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if equality.Semantic.DeepDerivative(deploy.Spec, currentDeploy.Spec) {
+		// objects are equal
+		return currentDeploy, nil
+	}
+	// update
+	currentDeploy.Spec = deploy.Spec
+	return currentDeploy, c.Update(ctx, currentDeploy)
 }
