@@ -22,9 +22,53 @@ import (
 
 // DNSServerSpec defines the desired state of DNSServer
 type DNSServerSpec struct {
-	// References the NetworkAttachmentDefinition to attach the DNSServer to a network.
+	// Configures forwarding queries to other DNS servers.
+	Forward *DNSForward `json:"forward,omitempty"`
+	// Enables caching of records.
+	Cache                       *DNSCache            `json:"cache,omitempty"`
 	NetworkAttachmentDefinition LocalObjectReference `json:"networkAttachmentDefinition"`
 }
+
+type NetworkAttachment struct {
+	// References a NetworkAttachmentDefinition to attach the DNSServer to a network.
+	NetworkAttachmentDefinition LocalObjectReference `json:"networkAttachmentDefinition"`
+}
+
+type DNSForward struct {
+	// From is the base domain to match for the request to be forwarded.
+	From string `json:"from"`
+	// destination endpoints to forward to. The TO syntax allows you to specify a protocol,
+	// tls://9.9.9.9 or dns:// (or no protocol) for plain DNS.
+	// The number of upstreams is limited to 15.
+	To []string `json:"to"`
+	// 	policy specifies the policy to use for selecting upstream servers.
+	// +kubebuilder:validation:Enum=Random;RoundRobin;Sequential
+	// +kubebuilder:default="Random"
+	Policy DNSForwardPolicy `json:"policy"`
+	// List of domains to exclude from forwarding.
+	// Requests that match none of these names will be passed through.
+	Except []string `json:"except,omitempty"`
+}
+
+type DNSCache struct {
+	// Each element in the cache is cached according to its TTL (with TTL as the max).
+	// +kubebuilder:default="3600s"
+	TTL metav1.Duration `json:"ttl"`
+	// Zones it should cache for.
+	// If empty, the zones from the configuration block are used.
+	Zones []string `json:"zones,omitempty"`
+}
+
+type DNSForwardPolicy string
+
+const (
+	// random is a policy that implements random upstream selection.
+	DNSForwardPolicyRandom DNSForwardPolicy = "Random"
+	// round_robin is a policy that selects hosts based on round robin ordering.
+	DNSForwardPolicyRoundRobin DNSForwardPolicy = "RoundRobin"
+	// sequential is a policy that selects hosts based on sequential ordering.
+	DNSForwardPolicySequential DNSForwardPolicy = "Sequential"
+)
 
 // DNSServerStatus defines the observed state of DNSServer
 type DNSServerStatus struct {
