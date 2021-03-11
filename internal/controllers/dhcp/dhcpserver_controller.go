@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	"github.com/go-logr/logr"
-	netv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -166,7 +165,6 @@ func (r *DHCPServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&dhcpv1alpha1.DHCPServer{}).
 		Owns(&ipamv1alpha1.IPv4Lease{}).
 		Owns(&ipamv1alpha1.IPv6Lease{}).
-		Owns(&netv1.NetworkAttachmentDefinition{}).
 		Owns(&appsv1.Deployment{}).
 		Complete(r)
 }
@@ -195,7 +193,7 @@ func (r *DHCPServerReconciler) lookupIPPools(
 
 		case errors.IsNotFound(err):
 			poolsNotFound = append(
-				poolsNotFound, "IPv4 "+dhcpServer.Spec.IPv4.Pool.Name)
+				poolsNotFound, fmt.Sprintf("IPv4:%q", dhcpServer.Spec.IPv4.Pool.Name))
 
 		default:
 			return nil, nil, res, false, err
@@ -215,7 +213,7 @@ func (r *DHCPServerReconciler) lookupIPPools(
 
 		case errors.IsNotFound(err):
 			poolsNotFound = append(
-				poolsNotFound, "IPv6 "+dhcpServer.Spec.IPv6.Pool.Name)
+				poolsNotFound, fmt.Sprintf("IPv6:%q", dhcpServer.Spec.IPv6.Pool.Name))
 
 		default:
 			return nil, nil, res, false, err
@@ -229,8 +227,8 @@ func (r *DHCPServerReconciler) lookupIPPools(
 			Type:   dhcpv1alpha1.Available,
 			Status: metav1.ConditionFalse,
 			Reason: "IPPoolNotFound",
-			Message: fmt.Sprintf(
-				"IPPools %s not found", strings.Join(poolsNotFound, ", ")),
+			Message: "IPPools " +
+				strings.Join(poolsNotFound, ", ") + " not found",
 			ObservedGeneration: dhcpServer.Generation,
 		})
 		res.Requeue = true // check later
@@ -337,6 +335,7 @@ func (r *DHCPServerReconciler) ensureIPLeases(
 	if err != nil {
 		return nil, nil, false, fmt.Errorf("ensuring IPv6Lease for DHCP server: %w", err)
 	}
+	fmt.Println(ipv6Lease)
 
 	var (
 		unreadyIPLease []string
@@ -356,6 +355,7 @@ func (r *DHCPServerReconciler) ensureIPLeases(
 			unreadyIPLease = append(unreadyIPLease, ipv4Lease.Name)
 		}
 	}
+
 	if ipv6Lease != nil {
 		switch {
 		case meta.IsStatusConditionTrue(
@@ -370,6 +370,7 @@ func (r *DHCPServerReconciler) ensureIPLeases(
 			unreadyIPLease = append(unreadyIPLease, ipv6Lease.Name)
 		}
 	}
+
 	if len(failedIPLease) > 0 {
 		// Failed Leasing
 		meta.SetStatusCondition(&dhcpServer.Status.Conditions, metav1.Condition{
