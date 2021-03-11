@@ -38,7 +38,8 @@ endif
 
 all: \
 	bin/linux_amd64/routerd \
-	bin/linux_amd64/routerd-dhcp
+	bin/linux_amd64/routerd-dhcp \
+	bin/linux_amd64/routerd-dns
 
 bin/linux_amd64/%: GOARGS = GOOS=linux GOARCH=amd64
 
@@ -154,13 +155,15 @@ pre-commit-install:
 build-images: \
 	build-image-radvd \
 	build-image-routerd \
-	build-image-routerd-dhcp
+	build-image-routerd-dhcp \
+	build-image-routerd-dns
 .PHONY: build-images
 
 push-images: \
 	push-image-radvd \
 	push-image-routerd \
-	push-image-routerd-dhcp
+	push-image-routerd-dhcp \
+	push-image-routerd-dns
 .PHONY: push-images
 
 build-image-radvd:

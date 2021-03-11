@@ -148,3 +148,27 @@ rules:
   verbs:
   - get
   - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: dns-role
+rules:
+- apiGroups:
+  - dns.routerd.net
+  resources:
+  - recordsets
+  - zones
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ipam.routerd.net
+  resources:
+  - recordsets/status
+  - zones/status
+  verbs:
+  - get
+  - patch

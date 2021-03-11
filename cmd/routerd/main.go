@@ -33,8 +33,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	dhcpv1alpha1 "routerd.net/routerd/apis/dhcp/v1alpha1"
+	dnsv1alpha1 "routerd.net/routerd/apis/dns/v1alpha1"
 	ipamv1alpha1 "routerd.net/routerd/apis/ipam/v1alpha1"
 	dhcpcontrollers "routerd.net/routerd/internal/controllers/dhcp"
+	dnscontrollers "routerd.net/routerd/internal/controllers/dns"
 	ipamcontrollers "routerd.net/routerd/internal/controllers/ipam"
 	ipamadapter "routerd.net/routerd/internal/controllers/ipam/adapter"
 )
@@ -48,6 +50,7 @@ func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 	_ = ipamv1alpha1.AddToScheme(scheme)
 	_ = dhcpv1alpha1.AddToScheme(scheme)
+	_ = dnsv1alpha1.AddToScheme(scheme)
 	_ = netv1.AddToScheme(scheme)
 }
 
@@ -125,6 +128,18 @@ func main() {
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DHCPServer")
+		os.Exit(1)
+	}
+
+	// ----
+	// DNS
+	// ----
+	if err = (&dnscontrollers.DNSServerReconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("controllers").WithName("DNSServer"),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "DNSServer")
 		os.Exit(1)
 	}
 

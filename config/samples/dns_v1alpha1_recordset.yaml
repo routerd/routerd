@@ -1,0 +1,30 @@
+apiVersion: dns.routerd.net/v1alpha1
+kind: RecordSet
+metadata:
+  name: record-set-0001
+recordSet:
+  dnsName: test.thetechnick.ninja
+  ttl: 15m
+  type: A
+  a:
+  - 192.0.2.1
+  - 192.0.2.2
+  - 192.0.2.3
+---
+apiVersion: dns.routerd.net/v1alpha1
+kind: RecordSet
+metadata:
+  name: record-set-0002
+recordSet:
+  dnsName: test.thetechnick.ninja
+  ttl: 15m
+  type: AAAA
+  aaaa:
+  - 2001:db8::1
+  - 2001:db8::2
+  - 2001:db8::3
+  # aaaa:
+  # - 2a01:4f8:c2c:7235::1
+  # txt:
+  # - text
+  # cname: 'google.de'

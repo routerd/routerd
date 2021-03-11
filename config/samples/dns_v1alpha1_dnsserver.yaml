@@ -1,0 +1,12 @@
+apiVersion: dns.routerd.net/v1alpha1
+kind: DNSServer
+metadata:
+  name: sample
+spec:
+  networkAttachment:
+    networkAttachmentDefinition:
+      name: br1-static
+    ipv4Pool:
+      name: sample
+    ipv6Pool:
+      name: sample

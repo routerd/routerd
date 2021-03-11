@@ -95,10 +95,12 @@ func (r *DHCPServerReconciler) Reconcile(
 	// Reconcile DHCP Server deployment
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dhcpServer.Name + "dhcp-server",
+			Name:      dhcpServer.Name + "-dhcp-server",
 			Namespace: dhcpServer.Namespace,
+			Labels:    map[string]string{},
 		},
 	}
+	addCommonLabels(sa.Labels, dhcpServer)
 	_, err = reconcile.ServiceAccount(ctx, r.Client, sa)
 	if err != nil {
 		return res, fmt.Errorf("reconcile ServiceAccount: %w", err)
@@ -108,6 +110,7 @@ func (r *DHCPServerReconciler) Reconcile(
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      sa.Name,
 			Namespace: sa.Namespace,
+			Labels:    map[string]string{},
 		},
 		Subjects: []rbacv1.Subject{
 			{
@@ -121,6 +124,7 @@ func (r *DHCPServerReconciler) Reconcile(
 			Name:     "routerd-dhcp-role",
 		},
 	}
+	addCommonLabels(roleBinding.Labels, dhcpServer)
 	_, err = reconcile.RoleBinding(ctx, r.Client, roleBinding)
 	if err != nil {
 		return res, fmt.Errorf("reconcile RoleBinding: %w", err)
@@ -375,7 +379,7 @@ func (r *DHCPServerReconciler) ensureIPLeases(
 		meta.SetStatusCondition(&dhcpServer.Status.Conditions, metav1.Condition{
 			Type:   dhcpv1alpha1.Available,
 			Status: metav1.ConditionFalse,
-			Reason: "UnboundDHCPServerIP",
+			Reason: "UnboundIP",
 			Message: fmt.Sprintf(
 				"Could not lease IPs for DHCP server: %s",
 				strings.Join(failedIPLease, ", ")),
@@ -391,7 +395,7 @@ func (r *DHCPServerReconciler) ensureIPLeases(
 		meta.SetStatusCondition(&dhcpServer.Status.Conditions, metav1.Condition{
 			Type:   dhcpv1alpha1.Available,
 			Status: metav1.ConditionFalse,
-			Reason: "UnboundDHCPServerIP",
+			Reason: "UnboundIP",
 			Message: fmt.Sprintf(
 				"Pending IPLease on DHCP server: %s",
 				strings.Join(unreadyIPLease, ", ")),
@@ -564,8 +568,10 @@ func (r *DHCPServerReconciler) ensureDeployment(
 	if err != nil {
 		return nil, false, fmt.Errorf("preparing Deployment: %w", err)
 	}
-	if _, err := reconcile.Deployment(ctx, r.Client, deploy); err != nil {
+
+	currentDeploy, err := reconcile.Deployment(ctx, r.Client, deploy)
+	if err != nil {
 		return nil, false, fmt.Errorf("reconciling Deployment: %w", err)
 	}
-	return deploy, false, nil
+	return currentDeploy, false, nil
 }
