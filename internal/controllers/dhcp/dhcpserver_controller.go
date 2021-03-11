@@ -335,7 +335,6 @@ func (r *DHCPServerReconciler) ensureIPLeases(
 	if err != nil {
 		return nil, nil, false, fmt.Errorf("ensuring IPv6Lease for DHCP server: %w", err)
 	}
-	fmt.Println(ipv6Lease)
 
 	var (
 		unreadyIPLease []string

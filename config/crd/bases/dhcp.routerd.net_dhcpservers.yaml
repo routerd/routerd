@@ -17,14 +17,14 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
+    - jsonPath: .status.ipv4.ippool.name
+      name: IPv4 Pool
+      type: string
+    - jsonPath: .status.ipv6.ippool.name
+      name: IPv6 Pool
+      type: string
     - jsonPath: .status.phase
       name: Status
-      type: string
-    - jsonPath: .status.addresses
-      name: Addresses
-      type: string
-    - jsonPath: .status.ippool.name
-      name: Pool
       type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age

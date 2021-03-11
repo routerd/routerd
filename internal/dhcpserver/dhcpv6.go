@@ -225,11 +225,15 @@ func (s *DHCPv6Server) handleRequest(
 	if ippool.Spec.LeaseDuration != nil {
 		leaseDuration = ippool.Spec.LeaseDuration.Duration
 	}
+	leasedIP, _, err := net.ParseCIDR(lease.Status.Address)
+	if err != nil {
+		return fmt.Errorf("error parsing leased ip: %w", err)
+	}
 	resp.AddOption(&dhcpv6.OptIANA{
 		IaId: msg.Options.OneIANA().IaId,
 		Options: dhcpv6.IdentityOptions{Options: []dhcpv6.Option{
 			&dhcpv6.OptIAAddress{
-				IPv6Addr:          net.ParseIP(lease.Status.Address),
+				IPv6Addr:          leasedIP,
 				PreferredLifetime: leaseDuration,
 				ValidLifetime:     leaseDuration,
 			},

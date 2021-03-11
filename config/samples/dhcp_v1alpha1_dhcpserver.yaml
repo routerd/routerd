@@ -26,10 +26,8 @@ spec:
     #   start: fd9c:fd74:6b8d:1020::5
     #   stop: fd9c:fd74:6b8d:1020:ffff:ffff:ffff:ffff
 
-  networkAttachment:
-    type: Bridge
-    bridge:
-      name: br1
+  networkAttachmentDefinition:
+    name: br1-static
 ---
 apiVersion: ipam.routerd.net/v1alpha1
 kind: IPv4Pool
@@ -46,3 +44,23 @@ metadata:
 spec:
   cidr: fde4:fa92:1362:78a7::/64
   leaseDuration: 1h
+---
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: br1-static
+spec:
+  config: |-
+    {
+      "cniVersion": "0.3.1",
+      "name": "br1-static",
+      "plugins": [
+        {
+          "bridge": "br1",
+          "ipam": {
+            "type": "static"
+          },
+          "type": "bridge"
+        }
+      ]
+    }
