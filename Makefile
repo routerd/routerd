@@ -56,9 +56,9 @@ clean:
 # Deployment
 # ----------
 
-# Run against the configured Kubernetes cluster in ~/.kube/config
+# Run against the configured Kubernetes cluster in ~/.kube/config or $KUBECONFIG
 run: generate fmt vet manifests
-	go run -ldflags "-w $(LD_FLAGS)" ./cmd/routerd/main.go
+	go run -ldflags "-w $(LD_FLAGS)" ./cmd/routerd/main.go -pprof-addr="localhost:8065"
 .PHONY: run
 
 # Install CRDs into a cluster

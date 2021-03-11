@@ -17,7 +17,10 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
+	"net/http"
+	"net/http/pprof"
 	"os"
 
 	netv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
@@ -27,6 +30,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	dhcpv1alpha1 "routerd.net/routerd/apis/dhcp/v1alpha1"
 	ipamv1alpha1 "routerd.net/routerd/apis/ipam/v1alpha1"
@@ -48,9 +52,13 @@ func init() {
 }
 
 func main() {
-	var metricsAddr string
-	var enableLeaderElection bool
+	var (
+		metricsAddr          string
+		pprofAddr            string
+		enableLeaderElection bool
+	)
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
+	flag.StringVar(&pprofAddr, "pprof-addr", "", "The address the pprof web endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -69,6 +77,43 @@ func main() {
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
+	}
+
+	// -----
+	// PPROF
+	// -----
+	if len(pprofAddr) > 0 {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+		s := &http.Server{Addr: pprofAddr, Handler: mux}
+		err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+			errCh := make(chan error)
+			defer func() {
+				for range errCh {
+				} // drain errCh for GC
+			}()
+			go func() {
+				defer close(errCh)
+				errCh <- s.ListenAndServe()
+			}()
+
+			select {
+			case err := <-errCh:
+				return err
+			case <-ctx.Done():
+				s.Close()
+				return nil
+			}
+		}))
+		if err != nil {
+			setupLog.Error(err, "unable to create pprof server")
+			os.Exit(1)
+		}
 	}
 
 	// ----
