@@ -26,8 +26,8 @@ type IPv6PoolSpec struct {
 	CIDR string `json:"cidr"`
 
 	// Lease duration for leased ips.
-	// IPLease must be renewed in time or
-	// it will be deleted and reclaimed into the pool.
+	// IPv6Leases of type "Dynamic" must be renewed in time or
+	// will be deleted and reclaimed into the pool.
 	LeaseDuration *metav1.Duration `json:"leaseDuration,omitempty"`
 }
 
