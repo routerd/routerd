@@ -18,18 +18,19 @@ package dhcp
 
 import (
 	"encoding/json"
-	"fmt"
 	"net"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/pointer"
 	utilpointer "k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	dhcpv1alpha1 "routerd.net/routerd/apis/dhcp/v1alpha1"
 	ipamv1alpha1 "routerd.net/routerd/apis/ipam/v1alpha1"
+	"routerd.net/routerd/internal/radvd"
 	"routerd.net/routerd/internal/version"
 )
 
@@ -71,22 +72,28 @@ func deployment(
 			})
 
 		_, subnet, _ := net.ParseCIDR(ipv6Pool.Spec.CIDR)
-		gateway := &net.IPNet{
+		gateway := net.IPNet{
 			IP:   net.ParseIP(dhcpServer.Spec.IPv6.Gateway),
 			Mask: subnet.Mask,
 		}
-		radvdConfig := fmt.Sprintf(`interface net1
-{
-	AdvSendAdvert on;
-	AdvManagedFlag on;
-	AdvOtherConfigFlag on;
+		radvdConfig := radvd.Config{
+			Interfaces: []radvd.Interface{
+				{
+					Name:               "net1",
+					AdvSendAdvert:      pointer.BoolPtr(true),
+					AdvManagedFlag:     pointer.BoolPtr(true),
+					AdvOtherConfigFlag: pointer.BoolPtr(true),
 
-	prefix %s
-	{
-		AdvOnLink on;
-		AdvRouterAddr on;
-	};
-};`, gateway.String())
+					Prefix: []radvd.Prefix{
+						{
+							Prefix:        gateway,
+							AdvOnLink:     pointer.BoolPtr(true),
+							AdvRouterAddr: pointer.BoolPtr(true),
+						},
+					},
+				},
+			},
+		}
 
 		containers = append(containers, corev1.Container{
 			ImagePullPolicy: corev1.PullAlways,
@@ -100,7 +107,7 @@ func deployment(
 			Env: []corev1.EnvVar{
 				{
 					Name:  "RADVD_CONFIG",
-					Value: radvdConfig,
+					Value: radvdConfig.String(),
 				},
 			},
 			Command: []string{
@@ -131,7 +138,7 @@ func deployment(
 
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dhcpServer.Name,
+			Name:      dhcpServer.Name + "-dhcp-server",
 			Namespace: dhcpServer.Namespace,
 			Labels:    map[string]string{},
 		},
@@ -181,8 +188,8 @@ func addCommonLabels(labels map[string]string, dhcpServer *dhcpv1alpha1.DHCPServ
 		return
 	}
 
-	labels[commonNameLabel] = "kube-dhcp"
+	labels[commonNameLabel] = "routed-dhcp"
 	labels[commonComponentLabel] = "dhcp-server"
-	labels[commonManagedByLabel] = "kube-dhcp-operator"
+	labels[commonManagedByLabel] = "routerd"
 	labels[commonInstanceLabel] = dhcpServer.Name
 }

@@ -17,6 +17,9 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Status
+      type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -40,17 +43,138 @@ spec:
           spec:
             description: DNSServerSpec defines the desired state of DNSServer
             properties:
-              networkAttachmentDefinition:
-                description: References the NetworkAttachmentDefinition to attach
-                  the DNSServer to a network.
+              cache:
+                description: Enables caching of records.
                 properties:
-                  name:
+                  ttl:
+                    default: 3600s
+                    description: Each element in the cache is cached according to
+                      its TTL (with TTL as the max).
                     type: string
+                  zones:
+                    description: Zones it should cache for. If empty, the zones from
+                      the configuration block are used.
+                    items:
+                      type: string
+                    type: array
                 required:
-                - name
+                - ttl
+                type: object
+              forward:
+                description: Configures forwarding queries to other DNS servers.
+                properties:
+                  except:
+                    description: List of domains to exclude from forwarding. Requests
+                      that match none of these names will be passed through.
+                    items:
+                      type: string
+                    type: array
+                  from:
+                    description: From is the base domain to match for the request
+                      to be forwarded.
+                    type: string
+                  policy:
+                    default: Random
+                    description: "\tpolicy specifies the policy to use for selecting
+                      upstream servers."
+                    enum:
+                    - Random
+                    - RoundRobin
+                    - Sequential
+                    type: string
+                  to:
+                    description: destination endpoints to forward to. The TO syntax
+                      allows you to specify a protocol, tls://9.9.9.9 or dns:// (or
+                      no protocol) for plain DNS. The number of upstreams is limited
+                      to 15.
+                    items:
+                      type: string
+                    type: array
+                required:
+                - from
+                - policy
+                - to
+                type: object
+              networkAttachment:
+                description: NetworkAttachment configures how the DNS Server is attached
+                  to a network.
+                properties:
+                  ipv4Pool:
+                    description: References an IPv4Pool to acquire the IP Adress for
+                      this DNS server from.
+                    properties:
+                      name:
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  ipv6Pool:
+                    description: References an IPv6Pool to acquire the IP Adress for
+                      this DNS server from.
+                    properties:
+                      name:
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  networkAttachmentDefinition:
+                    description: References a NetworkAttachmentDefinition to attach
+                      the DNSServer to a network.
+                    properties:
+                      name:
+                        type: string
+                    required:
+                    - name
+                    type: object
+                required:
+                - networkAttachmentDefinition
+                type: object
+              recordSelector:
+                description: Limits the delivered Zones and RecordSets.
+                properties:
+                  matchExpressions:
+                    description: matchExpressions is a list of label selector requirements.
+                      The requirements are ANDed.
+                    items:
+                      description: A label selector requirement is a selector that
+                        contains values, a key, and an operator that relates the key
+                        and values.
+                      properties:
+                        key:
+                          description: key is the label key that the selector applies
+                            to.
+                          type: string
+                        operator:
+                          description: operator represents a key's relationship to
+                            a set of values. Valid operators are In, NotIn, Exists
+                            and DoesNotExist.
+                          type: string
+                        values:
+                          description: values is an array of string values. If the
+                            operator is In or NotIn, the values array must be non-empty.
+                            If the operator is Exists or DoesNotExist, the values
+                            array must be empty. This array is replaced during a strategic
+                            merge patch.
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    description: matchLabels is a map of {key,value} pairs. A single
+                      {key,value} in the matchLabels map is equivalent to an element
+                      of matchExpressions, whose key field is "key", the operator
+                      is "In", and the values array contains only "value". The requirements
+                      are ANDed.
+                    type: object
                 type: object
             required:
-            - networkAttachmentDefinition
+            - networkAttachment
             type: object
           status:
             description: DNSServerStatus defines the observed state of DNSServer
@@ -126,6 +250,12 @@ spec:
                   - type
                   type: object
                 type: array
+              ipv4Address:
+                description: IPv4 Address the DHCP server is available at.
+                type: string
+              ipv6Address:
+                description: IPv6 Address the DHCP server is available at.
+                type: string
               observedGeneration:
                 description: The most recent generation observed by the controller.
                 format: int64
@@ -137,7 +267,8 @@ spec:
         type: object
     served: true
     storage: true
-    subresources: {}
+    subresources:
+      status: {}
 status:
   acceptedNames:
     kind: ""

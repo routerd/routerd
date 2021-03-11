@@ -25,13 +25,20 @@ type DNSServerSpec struct {
 	// Configures forwarding queries to other DNS servers.
 	Forward *DNSForward `json:"forward,omitempty"`
 	// Enables caching of records.
-	Cache                       *DNSCache            `json:"cache,omitempty"`
-	NetworkAttachmentDefinition LocalObjectReference `json:"networkAttachmentDefinition"`
+	Cache *DNSCache `json:"cache,omitempty"`
+	// Limits the delivered Zones and RecordSets.
+	RecordSelector metav1.LabelSelector `json:"recordSelector,omitempty"`
+	// NetworkAttachment configures how the DNS Server is attached to a network.
+	NetworkAttachment NetworkAttachment `json:"networkAttachment"`
 }
 
 type NetworkAttachment struct {
 	// References a NetworkAttachmentDefinition to attach the DNSServer to a network.
 	NetworkAttachmentDefinition LocalObjectReference `json:"networkAttachmentDefinition"`
+	// References an IPv4Pool to acquire the IP Adress for this DNS server from.
+	IPv4Pool LocalObjectReference `json:"ipv4Pool,omitempty"`
+	// References an IPv6Pool to acquire the IP Adress for this DNS server from.
+	IPv6Pool LocalObjectReference `json:"ipv6Pool,omitempty"`
 }
 
 type DNSForward struct {
@@ -78,10 +85,20 @@ type DNSServerStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 	// Human readable status aggregated from conditions.
 	Phase string `json:"phase,omitempty"`
+	// IPv4 Address the DHCP server is available at.
+	IPv4Address string `json:"ipv4Address,omitempty"`
+	// IPv6 Address the DHCP server is available at.
+	IPv6Address string `json:"ipv6Address,omitempty"`
 }
+
+const (
+	DNSServerAvailable = "Available"
+)
 
 // DNSServer is the Schema for the dnsservers API
 // +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 type DNSServer struct {
 	metav1.TypeMeta   `json:",inline"`

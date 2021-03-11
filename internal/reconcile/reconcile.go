@@ -132,3 +132,28 @@ func Deployment(
 	currentDeploy.Spec = deploy.Spec
 	return currentDeploy, c.Update(ctx, currentDeploy)
 }
+
+func ConfigMap(
+	ctx context.Context,
+	c client.Client, configMap *corev1.ConfigMap,
+) (currentConfigMap *corev1.ConfigMap, err error) {
+	currentConfigMap = &corev1.ConfigMap{}
+	err = c.Get(ctx, types.NamespacedName{
+		Name:      configMap.Name,
+		Namespace: configMap.Namespace,
+	}, currentConfigMap)
+	if errors.IsNotFound(err) {
+		return configMap, c.Create(ctx, configMap)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if equality.Semantic.DeepEqual(configMap.Data, currentConfigMap.Data) {
+		// objects are equal
+		return currentConfigMap, nil
+	}
+	// update
+	currentConfigMap.Data = configMap.Data
+	return currentConfigMap, c.Update(ctx, currentConfigMap)
+}

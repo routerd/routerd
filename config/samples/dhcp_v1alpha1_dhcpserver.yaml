@@ -3,7 +3,6 @@ kind: DHCPServer
 metadata:
   name: sample
 spec:
-
   ipv4:
     pool:
       name: sample
