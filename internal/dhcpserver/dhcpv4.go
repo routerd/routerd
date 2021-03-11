@@ -160,8 +160,12 @@ func (s *DHCPv4Server) handleRequest(
 		dhcpv4.OptIPAddressLeaseTime(leaseDuration))
 
 	// Server ID
+	serverIP, _, err := net.ParseCIDR(dhcpServer.Status.IPv4Address)
+	if err != nil {
+		return fmt.Errorf("error parsing server ip: %w", err)
+	}
 	resp.UpdateOption(
-		dhcpv4.OptServerIdentifier(net.ParseIP(dhcpServer.Status.IPv4Address)))
+		dhcpv4.OptServerIdentifier(serverIP))
 
 	// Router
 	resp.Options.Update(
@@ -175,7 +179,11 @@ func (s *DHCPv4Server) handleRequest(
 	}
 
 	// Leased IP
-	resp.YourIPAddr = net.ParseIP(lease.Status.Address)
+	yourIP, _, err := net.ParseCIDR(lease.Status.Address)
+	if err != nil {
+		return fmt.Errorf("error parsing leased ip: %w", err)
+	}
+	resp.YourIPAddr = yourIP
 	return nil
 }
 

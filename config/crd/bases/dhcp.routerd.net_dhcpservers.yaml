@@ -17,14 +17,14 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
+    - jsonPath: .status.ipv4.ippool.name
+      name: IPv4 Pool
+      type: string
+    - jsonPath: .status.ipv6.ippool.name
+      name: IPv6 Pool
+      type: string
     - jsonPath: .status.phase
       name: Status
-      type: string
-    - jsonPath: .status.addresses
-      name: Addresses
-      type: string
-    - jsonPath: .status.ippool.name
-      name: Pool
       type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
@@ -97,32 +97,17 @@ spec:
                 - gateway
                 - pool
                 type: object
-              networkAttachment:
-                description: Configures how the DHCP Server is attached to a network.
+              networkAttachmentDefinition:
+                description: References a network attachment definition to attach
+                  the DHCP Server Pod to a network.
                 properties:
-                  bridge:
-                    description: Bridge attachment configuration.
-                    properties:
-                      name:
-                        description: Name of the bridge device to bind to.
-                        type: string
-                    required:
-                    - name
-                    type: object
-                  type:
-                    default: Bridge
-                    description: "Type of network attachment for the DHCP server.
-                      Supported Types: \"Bridge\" \n Bridge uses multus and creates
-                      a NetworkAttachmentDefinition pointing to the given linux bridge."
-                    enum:
-                    - Bridge
+                  name:
                     type: string
                 required:
-                - bridge
-                - type
+                - name
                 type: object
             required:
-            - networkAttachment
+            - networkAttachmentDefinition
             type: object
           status:
             description: DHCPServerStatus defines the observed state of DHCPServer

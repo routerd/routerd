@@ -26,9 +26,8 @@ type DHCPServerSpec struct {
 	IPv4 *DHCPServerIPv4 `json:"ipv4,omitempty"`
 	// DHCP IPv6 specific settings.
 	IPv6 *DHCPServerIPv6 `json:"ipv6,omitempty"`
-
-	// Configures how the DHCP Server is attached to a network.
-	NetworkAttachment NetworkAttachment `json:"networkAttachment"`
+	// References a network attachment definition to attach the DHCP Server Pod to a network.
+	NetworkAttachmentDefinition LocalObjectReference `json:"networkAttachmentDefinition"`
 }
 
 // DHCP Server Settings for IPv4.
@@ -51,31 +50,6 @@ type DHCPServerIPv6 struct {
 	Gateway string `json:"gateway"`
 	// NameServers to point clients to.
 	NameServers []string `json:"nameServers,omitempty"`
-}
-
-type NetworkAttachmentType string
-
-const (
-	Bridge NetworkAttachmentType = "Bridge"
-)
-
-type NetworkAttachment struct {
-	// Type of network attachment for the DHCP server.
-	// Supported Types: "Bridge"
-	//
-	// Bridge uses multus and creates a NetworkAttachmentDefinition
-	// pointing to the given linux bridge.
-	// +kubebuilder:default="Bridge"
-	// +kubebuilder:validation:Enum=Bridge
-	Type NetworkAttachmentType `json:"type"`
-	// Bridge attachment configuration.
-	Bridge *NetworkAttachmentBridge `json:"bridge"`
-}
-
-// NetworkAttachment settings for type="Bridge"
-type NetworkAttachmentBridge struct {
-	// Name of the bridge device to bind to.
-	Name string `json:"name"`
 }
 
 const (
@@ -104,9 +78,9 @@ type LocalObjectReference struct {
 // DHCPServer is the Schema for the dhcpservers API
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="IPv4 Pool",type="string",JSONPath=".status.ipv4.ippool.name"
+// +kubebuilder:printcolumn:name="IPv6 Pool",type="string",JSONPath=".status.ipv6.ippool.name"
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
-// +kubebuilder:printcolumn:name="Addresses",type="string",JSONPath=".status.addresses"
-// +kubebuilder:printcolumn:name="Pool",type="string",JSONPath=".status.ippool.name"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 type DHCPServer struct {
 	metav1.TypeMeta   `json:",inline"`

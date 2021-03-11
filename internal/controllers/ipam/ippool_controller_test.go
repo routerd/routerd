@@ -131,7 +131,7 @@ func TestIPPoolReconciler_createIPAM(t *testing.T) {
 						},
 					},
 					Status: ipamv1alpha1.IPv4LeaseStatus{
-						Address: "192.0.2.1",
+						Address: "192.0.2.1/24",
 						Conditions: []metav1.Condition{
 							{Type: ipamv1alpha1.IPLeaseBound, Status: metav1.ConditionTrue},
 						},
@@ -144,7 +144,7 @@ func TestIPPoolReconciler_createIPAM(t *testing.T) {
 						},
 					},
 					Status: ipamv1alpha1.IPv4LeaseStatus{
-						Address: "192.0.2.2",
+						Address: "192.0.2.2/24",
 						Conditions: []metav1.Condition{
 							{Type: ipamv1alpha1.IPLeaseBound, Status: metav1.ConditionFalse},
 						},
@@ -158,7 +158,7 @@ func TestIPPoolReconciler_createIPAM(t *testing.T) {
 					},
 					Status: ipamv1alpha1.IPv4LeaseStatus{
 						LeaseDuration: &metav1.Duration{},
-						Address:       "192.0.2.3",
+						Address:       "192.0.2.3/24",
 						Conditions: []metav1.Condition{
 							{Type: ipamv1alpha1.IPLeaseBound, Status: metav1.ConditionTrue},
 						},

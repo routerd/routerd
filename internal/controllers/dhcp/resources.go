@@ -17,10 +17,10 @@ limitations under the License.
 package dhcp
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 
-	netv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,8 +38,9 @@ const networksAnnotations = "k8s.v1.cni.cncf.io/networks"
 func deployment(
 	scheme *runtime.Scheme,
 	dhcpServer *dhcpv1alpha1.DHCPServer,
-	ipv6pool *ipamv1alpha1.IPv6Pool,
-	nad *netv1.NetworkAttachmentDefinition,
+	ipv4Lease *ipamv1alpha1.IPv4Lease,
+	ipv6Lease *ipamv1alpha1.IPv6Lease,
+	ipv6Pool *ipamv1alpha1.IPv6Pool,
 	sa *corev1.ServiceAccount,
 ) (*appsv1.Deployment, error) {
 	env := []corev1.EnvVar{
@@ -69,7 +70,7 @@ func deployment(
 				Value: "True",
 			})
 
-		_, subnet, _ := net.ParseCIDR(ipv6pool.Spec.CIDR)
+		_, subnet, _ := net.ParseCIDR(ipv6Pool.Spec.CIDR)
 		gateway := &net.IPNet{
 			IP:   net.ParseIP(dhcpServer.Spec.IPv6.Gateway),
 			Mask: subnet.Mask,
@@ -113,6 +114,21 @@ func deployment(
 		Env:             env,
 	})
 
+	var netconfigIPs []string
+	if ipv4Lease != nil {
+		netconfigIPs = append(netconfigIPs, ipv4Lease.Status.Address)
+	}
+	if ipv6Lease != nil {
+		netconfigIPs = append(netconfigIPs, ipv6Lease.Status.Address)
+	}
+	netconfig := []map[string]interface{}{
+		{
+			"name": dhcpServer.Spec.NetworkAttachmentDefinition.Name,
+			"ips":  netconfigIPs,
+		},
+	}
+	netconfigJson, _ := json.MarshalIndent(netconfig, "", "  ")
+
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dhcpServer.Name,
@@ -132,7 +148,7 @@ func deployment(
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{},
 					Annotations: map[string]string{
-						networksAnnotations: nad.Name,
+						networksAnnotations: string(netconfigJson),
 					},
 				},
 				Spec: corev1.PodSpec{

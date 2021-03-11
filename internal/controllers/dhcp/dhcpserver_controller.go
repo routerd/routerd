@@ -18,13 +18,10 @@ package dhcp
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net"
 	"strings"
 
 	"github.com/go-logr/logr"
-	netv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -66,214 +63,36 @@ func (r *DHCPServerReconciler) Reconcile(
 
 	// Phase 1.
 	// Lookup IPPools
-	var (
-		ipv4Pool      *ipamv1alpha1.IPv4Pool
-		ipv6Pool      *ipamv1alpha1.IPv6Pool
-		poolsNotFound []string
-	)
-	if ipv4Enabled {
-		ippool := &ipamv1alpha1.IPv4Pool{}
-		err := r.Get(ctx, types.NamespacedName{
-			Name:      dhcpServer.Spec.IPv4.Pool.Name,
-			Namespace: dhcpServer.Namespace,
-		}, ippool)
-		switch {
-		case err == nil:
-			ipv4Pool = ippool
-
-		case errors.IsNotFound(err):
-			poolsNotFound = append(
-				poolsNotFound, "IPv4 "+dhcpServer.Spec.IPv4.Pool.Name)
-
-		default:
-			return res, err
-		}
+	ipv4Pool, ipv6Pool, res, stop, err := r.lookupIPPools(ctx, dhcpServer)
+	if err != nil {
+		return res, fmt.Errorf("looking up IPPools: %w", err)
 	}
-	if ipv6Enabled {
-		ippool := &ipamv1alpha1.IPv6Pool{}
-		err := r.Get(ctx, types.NamespacedName{
-			Name:      dhcpServer.Spec.IPv6.Pool.Name,
-			Namespace: dhcpServer.Namespace,
-		}, ippool)
-		switch {
-		case err == nil:
-			ipv6Pool = ippool
-
-		case errors.IsNotFound(err):
-			poolsNotFound = append(
-				poolsNotFound, "IPv6 "+dhcpServer.Spec.IPv6.Pool.Name)
-
-		default:
-			return res, err
-		}
-	}
-	if len(poolsNotFound) > 0 {
-		dhcpServer.Status.Phase = "IPPoolNotFound"
-		dhcpServer.Status.ObservedGeneration = dhcpServer.Generation
-		meta.SetStatusCondition(&dhcpServer.Status.Conditions, metav1.Condition{
-			Type:   dhcpv1alpha1.Available,
-			Status: metav1.ConditionFalse,
-			Reason: "IPPoolNotFound",
-			Message: fmt.Sprintf(
-				"IPPools %s not found", strings.Join(poolsNotFound, ", ")),
-			ObservedGeneration: dhcpServer.Generation,
-		})
-		res.Requeue = true // check later
-		return res, r.Status().Update(ctx, dhcpServer)
+	if stop {
+		return res, nil
 	}
 
 	// Phase 2.
 	// Ensure the Gateway IP Address has a Static Lease,
 	// so it's not allocated by the DHCP Server.
-	ipv4GatewayLease, err := r.ensureIPv4GatewayLease(ctx, dhcpServer, ipv4Pool)
-	if err != nil {
-		return res, fmt.Errorf("ensuring IPv4Lease for Gateway IP: %w", err)
-	}
-	ipv6GatewayLease, err := r.ensureIPv6GatewayLease(ctx, dhcpServer, ipv6Pool)
-	if err != nil {
-		return res, fmt.Errorf("ensuring IPv6Lease for Gateway IP: %w", err)
-	}
-
-	// check status and wait
-	var (
-		unreadyIPLease []string
-		failedIPLease  []string
-	)
-	if ipv4GatewayLease != nil {
-		switch {
-		case meta.IsStatusConditionTrue(
-			ipv4GatewayLease.Status.Conditions, ipamv1alpha1.IPLeaseBound):
-			// ready!
-
-		case meta.IsStatusConditionFalse(
-			ipv4GatewayLease.Status.Conditions, ipamv1alpha1.IPLeaseBound):
-			failedIPLease = append(failedIPLease, ipv4GatewayLease.Status.Address)
-
-		default:
-			unreadyIPLease = append(unreadyIPLease, ipv4GatewayLease.Status.Address)
-		}
-	}
-	if ipv6GatewayLease != nil {
-		switch {
-		case meta.IsStatusConditionTrue(
-			ipv6GatewayLease.Status.Conditions, ipamv1alpha1.IPLeaseBound):
-			// ready!
-
-		case meta.IsStatusConditionFalse(
-			ipv6GatewayLease.Status.Conditions, ipamv1alpha1.IPLeaseBound):
-			failedIPLease = append(failedIPLease, ipv6GatewayLease.Status.Address)
-
-		default:
-			unreadyIPLease = append(unreadyIPLease, ipv6GatewayLease.Status.Address)
-		}
-	}
-	if len(failedIPLease) > 0 {
-		// Failed Leasing GW Addresses
-		meta.SetStatusCondition(&dhcpServer.Status.Conditions, metav1.Condition{
-			Type:   dhcpv1alpha1.Available,
-			Status: metav1.ConditionFalse,
-			Reason: "UnboundGatewayIP",
-			Message: fmt.Sprintf(
-				"Could not lease Gateway IPs: %s",
-				strings.Join(failedIPLease, ", ")),
-			ObservedGeneration: dhcpServer.Generation,
-		})
-		dhcpServer.Status.ObservedGeneration = dhcpServer.Generation
-		dhcpServer.Status.Phase = "Failed"
-		return res, r.Status().Update(ctx, dhcpServer)
-	}
-	if len(unreadyIPLease) > 0 {
-		// Unready GW Addresses, waiting
-		meta.SetStatusCondition(&dhcpServer.Status.Conditions, metav1.Condition{
-			Type:   dhcpv1alpha1.Available,
-			Status: metav1.ConditionFalse,
-			Reason: "UnboundGatewayIP",
-			Message: fmt.Sprintf(
-				"Pending lease on Gateway IPs: %s",
-				strings.Join(unreadyIPLease, ", ")),
-			ObservedGeneration: dhcpServer.Generation,
-		})
-		dhcpServer.Status.ObservedGeneration = dhcpServer.Generation
-		dhcpServer.Status.Phase = "Pending"
-		return res, r.Status().Update(ctx, dhcpServer)
+	if stop, err := r.ensureGatewayIPLeases(ctx, dhcpServer, ipv4Pool, ipv6Pool); err != nil {
+		return res, fmt.Errorf("ensuring gateway IPLeases: %w", err)
+	} else if stop {
+		// we are retriggered by watching IPLeases
+		return res, nil
 	}
 
 	// Phase 3.
 	// Lease IP addresses for the DHCP Server
-	var (
-		unreadyDHCPIPLease []string
-		failedDHCPIPLease  []string
-	)
-	ipv4DHCPLease, err := r.ensureIPv4Lease(ctx, dhcpServer, ipv4Pool)
+	ipv4DHCPLease, ipv6DHCPLease, stop, err := r.ensureIPLeases(ctx, dhcpServer, ipv4Pool, ipv6Pool)
 	if err != nil {
-		return res, fmt.Errorf("ensuring IPv4Lease for DHCP server: %w", err)
-	}
-	ipv6DHCPLease, err := r.ensureIPv6Lease(ctx, dhcpServer, ipv6Pool)
-	if err != nil {
-		return res, fmt.Errorf("ensuring IPv6Lease for DHCP server: %w", err)
-	}
-	if ipv4DHCPLease != nil {
-		switch {
-		case meta.IsStatusConditionTrue(
-			ipv4GatewayLease.Status.Conditions, ipamv1alpha1.IPLeaseBound):
-			dhcpServer.Status.IPv4Address = ipv4DHCPLease.Status.Address
-
-		case meta.IsStatusConditionFalse(
-			ipv4GatewayLease.Status.Conditions, ipamv1alpha1.IPLeaseBound):
-			failedDHCPIPLease = append(failedDHCPIPLease, ipv4GatewayLease.Name)
-
-		default:
-			unreadyDHCPIPLease = append(unreadyDHCPIPLease, ipv4GatewayLease.Name)
-		}
-	}
-	if ipv6DHCPLease != nil {
-		switch {
-		case meta.IsStatusConditionTrue(
-			ipv6GatewayLease.Status.Conditions, ipamv1alpha1.IPLeaseBound):
-			dhcpServer.Status.IPv6Address = ipv6DHCPLease.Status.Address
-
-		case meta.IsStatusConditionFalse(
-			ipv6GatewayLease.Status.Conditions, ipamv1alpha1.IPLeaseBound):
-			failedDHCPIPLease = append(failedDHCPIPLease, ipv6GatewayLease.Name)
-
-		default:
-			unreadyDHCPIPLease = append(unreadyDHCPIPLease, ipv6GatewayLease.Name)
-		}
-	}
-	if len(failedDHCPIPLease) > 0 {
-		// Failed Leasing GW Addresses
-		meta.SetStatusCondition(&dhcpServer.Status.Conditions, metav1.Condition{
-			Type:   dhcpv1alpha1.Available,
-			Status: metav1.ConditionFalse,
-			Reason: "UnboundDHCPServerIP",
-			Message: fmt.Sprintf(
-				"Could not lease IPs for DHCP server: %s",
-				strings.Join(failedDHCPIPLease, ", ")),
-			ObservedGeneration: dhcpServer.Generation,
-		})
-		dhcpServer.Status.ObservedGeneration = dhcpServer.Generation
-		dhcpServer.Status.Phase = "Failed"
-		return res, r.Status().Update(ctx, dhcpServer)
-	}
-	if len(unreadyDHCPIPLease) > 0 {
-		// Unready GW Addresses, waiting
-		meta.SetStatusCondition(&dhcpServer.Status.Conditions, metav1.Condition{
-			Type:   dhcpv1alpha1.Available,
-			Status: metav1.ConditionFalse,
-			Reason: "UnboundDHCPServerIP",
-			Message: fmt.Sprintf(
-				"Pending IPLease on DHCP server: %s",
-				strings.Join(unreadyDHCPIPLease, ", ")),
-			ObservedGeneration: dhcpServer.Generation,
-		})
-		dhcpServer.Status.ObservedGeneration = dhcpServer.Generation
-		dhcpServer.Status.Phase = "Pending"
-		return res, r.Status().Update(ctx, dhcpServer)
+		return res, fmt.Errorf("ensuring dhcp server IPLeases: %w", err)
+	} else if stop {
+		// we are retriggered by watching IPLeases
+		return res, nil
 	}
 
 	// Phase 4.
-	// Create NAD and Deployment
-
+	// Reconcile DHCP Server deployment
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dhcpServer.Name + "dhcp-server",
@@ -307,14 +126,8 @@ func (r *DHCPServerReconciler) Reconcile(
 		return res, fmt.Errorf("reconcile RoleBinding: %w", err)
 	}
 
-	// NetworkAttachmentDefinition
-	nad, err := r.ensureNetworkAttachmentDefinition(
-		ctx, dhcpServer, ipv4DHCPLease, ipv6DHCPLease, ipv4Pool, ipv6Pool)
-	if err != nil {
-		return res, err
-	}
-
-	deploy, stop, err := r.ensureDeployment(ctx, dhcpServer, ipv6Pool, nad, sa)
+	deploy, stop, err := r.ensureDeployment(
+		ctx, dhcpServer, ipv4DHCPLease, ipv6DHCPLease, ipv6Pool, sa)
 	if err != nil {
 		return res, err
 	} else if stop {
@@ -352,9 +165,243 @@ func (r *DHCPServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&dhcpv1alpha1.DHCPServer{}).
 		Owns(&ipamv1alpha1.IPv4Lease{}).
 		Owns(&ipamv1alpha1.IPv6Lease{}).
-		Owns(&netv1.NetworkAttachmentDefinition{}).
 		Owns(&appsv1.Deployment{}).
 		Complete(r)
+}
+
+func (r *DHCPServerReconciler) lookupIPPools(
+	ctx context.Context, dhcpServer *dhcpv1alpha1.DHCPServer,
+) (
+	ipv4Pool *ipamv1alpha1.IPv4Pool,
+	ipv6Pool *ipamv1alpha1.IPv6Pool,
+	res ctrl.Result,
+	stop bool,
+	err error,
+) {
+	var poolsNotFound []string
+
+	if dhcpServer.Spec.IPv4 != nil {
+		// IPv4 enabled
+		ippool := &ipamv1alpha1.IPv4Pool{}
+		err := r.Get(ctx, types.NamespacedName{
+			Name:      dhcpServer.Spec.IPv4.Pool.Name,
+			Namespace: dhcpServer.Namespace,
+		}, ippool)
+		switch {
+		case err == nil:
+			ipv4Pool = ippool
+
+		case errors.IsNotFound(err):
+			poolsNotFound = append(
+				poolsNotFound, fmt.Sprintf("IPv4:%q", dhcpServer.Spec.IPv4.Pool.Name))
+
+		default:
+			return nil, nil, res, false, err
+		}
+	}
+
+	if dhcpServer.Spec.IPv6 != nil {
+		// IPv6 enabled
+		ippool := &ipamv1alpha1.IPv6Pool{}
+		err := r.Get(ctx, types.NamespacedName{
+			Name:      dhcpServer.Spec.IPv6.Pool.Name,
+			Namespace: dhcpServer.Namespace,
+		}, ippool)
+		switch {
+		case err == nil:
+			ipv6Pool = ippool
+
+		case errors.IsNotFound(err):
+			poolsNotFound = append(
+				poolsNotFound, fmt.Sprintf("IPv6:%q", dhcpServer.Spec.IPv6.Pool.Name))
+
+		default:
+			return nil, nil, res, false, err
+		}
+	}
+
+	if len(poolsNotFound) > 0 {
+		dhcpServer.Status.Phase = "IPPoolNotFound"
+		dhcpServer.Status.ObservedGeneration = dhcpServer.Generation
+		meta.SetStatusCondition(&dhcpServer.Status.Conditions, metav1.Condition{
+			Type:   dhcpv1alpha1.Available,
+			Status: metav1.ConditionFalse,
+			Reason: "IPPoolNotFound",
+			Message: "IPPools " +
+				strings.Join(poolsNotFound, ", ") + " not found",
+			ObservedGeneration: dhcpServer.Generation,
+		})
+		res.Requeue = true // check later
+		return nil, nil, res, true, r.Status().Update(ctx, dhcpServer)
+	}
+	return
+}
+
+func (r *DHCPServerReconciler) ensureGatewayIPLeases(
+	ctx context.Context, dhcpServer *dhcpv1alpha1.DHCPServer,
+	ipv4Pool *ipamv1alpha1.IPv4Pool, ipv6Pool *ipamv1alpha1.IPv6Pool,
+) (stop bool, err error) {
+	// Ensure IPv*Lease objects exist
+	ipv4GatewayLease, err := r.ensureIPv4GatewayLease(ctx, dhcpServer, ipv4Pool)
+	if err != nil {
+		return false, fmt.Errorf("ensuring IPv4Lease for Gateway IP: %w", err)
+	}
+	ipv6GatewayLease, err := r.ensureIPv6GatewayLease(ctx, dhcpServer, ipv6Pool)
+	if err != nil {
+		return false, fmt.Errorf("ensuring IPv6Lease for Gateway IP: %w", err)
+	}
+
+	var (
+		unreadyIPLease []string
+		failedIPLease  []string
+	)
+	if ipv4GatewayLease != nil {
+		switch {
+		case meta.IsStatusConditionTrue(
+			ipv4GatewayLease.Status.Conditions, ipamv1alpha1.IPLeaseBound):
+			// ready!
+
+		case meta.IsStatusConditionFalse(
+			ipv4GatewayLease.Status.Conditions, ipamv1alpha1.IPLeaseBound):
+			failedIPLease = append(failedIPLease, ipv4GatewayLease.Status.Address)
+
+		default:
+			unreadyIPLease = append(unreadyIPLease, ipv4GatewayLease.Status.Address)
+		}
+	}
+	if ipv6GatewayLease != nil {
+		switch {
+		case meta.IsStatusConditionTrue(
+			ipv6GatewayLease.Status.Conditions, ipamv1alpha1.IPLeaseBound):
+			// ready!
+
+		case meta.IsStatusConditionFalse(
+			ipv6GatewayLease.Status.Conditions, ipamv1alpha1.IPLeaseBound):
+			failedIPLease = append(failedIPLease, ipv6GatewayLease.Status.Address)
+
+		default:
+			unreadyIPLease = append(unreadyIPLease, ipv6GatewayLease.Status.Address)
+		}
+	}
+
+	if len(failedIPLease) > 0 {
+		// Failed Leasing GW Addresses
+		meta.SetStatusCondition(&dhcpServer.Status.Conditions, metav1.Condition{
+			Type:   dhcpv1alpha1.Available,
+			Status: metav1.ConditionFalse,
+			Reason: "UnboundGatewayIP",
+			Message: fmt.Sprintf(
+				"Could not lease Gateway IPs: %s",
+				strings.Join(failedIPLease, ", ")),
+			ObservedGeneration: dhcpServer.Generation,
+		})
+		dhcpServer.Status.ObservedGeneration = dhcpServer.Generation
+		dhcpServer.Status.Phase = "Failed"
+		return true, r.Status().Update(ctx, dhcpServer)
+	}
+
+	if len(unreadyIPLease) > 0 {
+		// Unready GW Addresses, waiting
+		meta.SetStatusCondition(&dhcpServer.Status.Conditions, metav1.Condition{
+			Type:   dhcpv1alpha1.Available,
+			Status: metav1.ConditionFalse,
+			Reason: "UnboundGatewayIP",
+			Message: fmt.Sprintf(
+				"Pending lease on Gateway IPs: %s",
+				strings.Join(unreadyIPLease, ", ")),
+			ObservedGeneration: dhcpServer.Generation,
+		})
+		dhcpServer.Status.ObservedGeneration = dhcpServer.Generation
+		dhcpServer.Status.Phase = "Pending"
+		return true, r.Status().Update(ctx, dhcpServer)
+	}
+	return false, nil
+}
+
+func (r *DHCPServerReconciler) ensureIPLeases(
+	ctx context.Context, dhcpServer *dhcpv1alpha1.DHCPServer,
+	ipv4Pool *ipamv1alpha1.IPv4Pool, ipv6Pool *ipamv1alpha1.IPv6Pool,
+) (
+	ipv4Lease *ipamv1alpha1.IPv4Lease,
+	ipv6Lease *ipamv1alpha1.IPv6Lease,
+	stop bool,
+	err error,
+) {
+	ipv4Lease, err = r.ensureIPv4Lease(ctx, dhcpServer, ipv4Pool)
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("ensuring IPv4Lease for DHCP server: %w", err)
+	}
+	ipv6Lease, err = r.ensureIPv6Lease(ctx, dhcpServer, ipv6Pool)
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("ensuring IPv6Lease for DHCP server: %w", err)
+	}
+
+	var (
+		unreadyIPLease []string
+		failedIPLease  []string
+	)
+	if ipv4Lease != nil {
+		switch {
+		case meta.IsStatusConditionTrue(
+			ipv4Lease.Status.Conditions, ipamv1alpha1.IPLeaseBound):
+			dhcpServer.Status.IPv4Address = ipv4Lease.Status.Address
+
+		case meta.IsStatusConditionFalse(
+			ipv4Lease.Status.Conditions, ipamv1alpha1.IPLeaseBound):
+			failedIPLease = append(failedIPLease, ipv4Lease.Name)
+
+		default:
+			unreadyIPLease = append(unreadyIPLease, ipv4Lease.Name)
+		}
+	}
+
+	if ipv6Lease != nil {
+		switch {
+		case meta.IsStatusConditionTrue(
+			ipv6Lease.Status.Conditions, ipamv1alpha1.IPLeaseBound):
+			dhcpServer.Status.IPv6Address = ipv6Lease.Status.Address
+
+		case meta.IsStatusConditionFalse(
+			ipv6Lease.Status.Conditions, ipamv1alpha1.IPLeaseBound):
+			failedIPLease = append(failedIPLease, ipv6Lease.Name)
+
+		default:
+			unreadyIPLease = append(unreadyIPLease, ipv6Lease.Name)
+		}
+	}
+
+	if len(failedIPLease) > 0 {
+		// Failed Leasing
+		meta.SetStatusCondition(&dhcpServer.Status.Conditions, metav1.Condition{
+			Type:   dhcpv1alpha1.Available,
+			Status: metav1.ConditionFalse,
+			Reason: "UnboundDHCPServerIP",
+			Message: fmt.Sprintf(
+				"Could not lease IPs for DHCP server: %s",
+				strings.Join(failedIPLease, ", ")),
+			ObservedGeneration: dhcpServer.Generation,
+		})
+		dhcpServer.Status.ObservedGeneration = dhcpServer.Generation
+		dhcpServer.Status.Phase = "Failed"
+		return nil, nil, true, r.Status().Update(ctx, dhcpServer)
+	}
+
+	if len(unreadyIPLease) > 0 {
+		// Unready Lease
+		meta.SetStatusCondition(&dhcpServer.Status.Conditions, metav1.Condition{
+			Type:   dhcpv1alpha1.Available,
+			Status: metav1.ConditionFalse,
+			Reason: "UnboundDHCPServerIP",
+			Message: fmt.Sprintf(
+				"Pending IPLease on DHCP server: %s",
+				strings.Join(unreadyIPLease, ", ")),
+			ObservedGeneration: dhcpServer.Generation,
+		})
+		dhcpServer.Status.ObservedGeneration = dhcpServer.Generation
+		dhcpServer.Status.Phase = "Pending"
+		return nil, nil, true, r.Status().Update(ctx, dhcpServer)
+	}
+	return
 }
 
 // Ensure a Lease for the IPv4 Gateway exists.
@@ -505,98 +552,19 @@ func (r *DHCPServerReconciler) ensureIPv6Lease(
 	return currentIPLease, nil
 }
 
-func (r *DHCPServerReconciler) ensureNetworkAttachmentDefinition(
-	ctx context.Context,
-	dhcpServer *dhcpv1alpha1.DHCPServer,
-	dhcpIPv4Lease *ipamv1alpha1.IPv4Lease,
-	dhcpIPv6Lease *ipamv1alpha1.IPv6Lease,
-	ipv4Pool *ipamv1alpha1.IPv4Pool,
-	ipv6Pool *ipamv1alpha1.IPv6Pool,
-) (_ *netv1.NetworkAttachmentDefinition, err error) {
-	if dhcpServer.Spec.NetworkAttachment.Type != dhcpv1alpha1.Bridge {
-		return nil, fmt.Errorf(
-			"unsupported network attachment type: %s",
-			dhcpServer.Spec.NetworkAttachment.Type)
-	}
-
-	var (
-		ipv4Mask net.IPMask
-		ipv6Mask net.IPMask
-	)
-	var addresses []map[string]string
-	if dhcpServer.Spec.IPv4 != nil {
-		_, ipv4Net, _ := net.ParseCIDR(ipv4Pool.Spec.CIDR)
-		ipv4Mask = ipv4Net.Mask
-		ip := &net.IPNet{
-			IP:   net.ParseIP(dhcpIPv4Lease.Status.Address),
-			Mask: ipv4Mask,
-		}
-		addresses = append(addresses, map[string]string{
-			"address": ip.String()})
-	}
-	if dhcpServer.Spec.IPv6 != nil {
-		_, ipv6Net, _ := net.ParseCIDR(ipv6Pool.Spec.CIDR)
-		ipv6Mask = ipv6Net.Mask
-		ip := &net.IPNet{
-			IP:   net.ParseIP(dhcpIPv6Lease.Status.Address),
-			Mask: ipv6Mask,
-		}
-		addresses = append(addresses, map[string]string{
-			"address": ip.String()})
-	}
-
-	nadConfigJSON := map[string]interface{}{
-		"cniVersion": "0.3.1",
-		"name":       dhcpServer.Namespace + "-" + dhcpServer.Name,
-		"plugins": []map[string]interface{}{
-			{
-				"type":   "bridge",
-				"bridge": dhcpServer.Spec.NetworkAttachment.Bridge.Name,
-				"ipam": map[string]interface{}{
-					"type":      "static",
-					"addresses": addresses,
-				},
-			},
-		},
-	}
-	nadConfigBytes, err := json.MarshalIndent(nadConfigJSON, "", "  ")
-	if err != nil {
-		return nil, err
-	}
-
-	nad := &netv1.NetworkAttachmentDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      dhcpServer.Name,
-			Namespace: dhcpServer.Namespace,
-			Labels:    map[string]string{},
-		},
-		Spec: netv1.NetworkAttachmentDefinitionSpec{
-			Config: string(nadConfigBytes),
-		},
-	}
-	addCommonLabels(nad.Labels, dhcpServer)
-	if err := controllerutil.SetControllerReference(dhcpServer, nad, r.Scheme); err != nil {
-		return nil, err
-	}
-
-	if _, err := reconcileNAD(ctx, r.Client, nad); err != nil {
-		return nil, fmt.Errorf("reconciling NetworkAttachmentDefinition: %w", err)
-	}
-	return nad, nil
-}
-
 func (r *DHCPServerReconciler) ensureDeployment(
 	ctx context.Context,
 	dhcpServer *dhcpv1alpha1.DHCPServer,
-	ipv6pool *ipamv1alpha1.IPv6Pool,
-	nad *netv1.NetworkAttachmentDefinition,
+	ipv4Lease *ipamv1alpha1.IPv4Lease,
+	ipv6Lease *ipamv1alpha1.IPv6Lease,
+	ipv6Pool *ipamv1alpha1.IPv6Pool,
 	sa *corev1.ServiceAccount,
 ) (_ *appsv1.Deployment, stop bool, err error) {
-	deploy, err := deployment(r.Scheme, dhcpServer, ipv6pool, nad, sa)
+	deploy, err := deployment(r.Scheme, dhcpServer, ipv4Lease, ipv6Lease, ipv6Pool, sa)
 	if err != nil {
 		return nil, false, fmt.Errorf("preparing Deployment: %w", err)
 	}
-	if _, err := reconcileDeployment(ctx, r.Client, deploy); err != nil {
+	if _, err := reconcile.Deployment(ctx, r.Client, deploy); err != nil {
 		return nil, false, fmt.Errorf("reconciling Deployment: %w", err)
 	}
 	return deploy, false, nil
