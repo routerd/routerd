@@ -205,7 +205,7 @@ func (i Interface) String() string {
 	if len(i.Clients) > 0 {
 		s += "\n" + i.Clients.String()
 	}
-	return s + "}\n"
+	return s + "};\n"
 }
 
 type Prefix struct {
@@ -258,7 +258,7 @@ func (p Prefix) String() string {
 	if len(p.Base6to4Interface) > 0 {
 		s += "\t\tBase6to4Interface " + p.Base6to4Interface + ";\n"
 	}
-	return s + "\t}\n"
+	return s + "\t};\n"
 }
 
 type Route struct {
@@ -281,7 +281,7 @@ func (r Route) String() string {
 		s += "\t\tAdvRoutePreference " +
 			string(r.AdvRoutePreference) + ";\n"
 	}
-	return s + "\t}\n"
+	return s + "\t};\n"
 }
 
 type RDNSS struct {
@@ -302,7 +302,7 @@ func (r RDNSS) String() string {
 		s += "\t\tAdvRDNSSLifetime " +
 			strconv.Itoa(int(r.AdvRDNSSLifetime.Seconds())) + ";\n"
 	}
-	return s + "\t}\n"
+	return s + "\t};\n"
 }
 
 type Clients []net.IP
@@ -312,7 +312,7 @@ func (c Clients) String() string {
 	for _, ip := range c {
 		s += "\t\t" + ip.String() + ";\n"
 	}
-	return s + "\t}\n"
+	return s + "\t};\n"
 }
 
 type AdvPreferenceType string

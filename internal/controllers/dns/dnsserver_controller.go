@@ -527,12 +527,12 @@ func corefile(dnsServer *dnsv1alpha1.DNSServer) string {
 `
 
 	if f := dnsServer.Spec.Forward; f != nil {
-		config += "\tforward " + f.From + " " + strings.Join(f.To, " ") + "{\n"
+		config += "\tforward " + f.From + " " + strings.Join(f.To, " ") + " {\n"
 		config += "\t\tpolicy " + strings.ToLower(string(f.Policy)) + "\n"
 		if len(f.Except) > 0 {
 			config += "\t\texcept " + strings.Join(f.Except, " ") + "\n"
 		}
-		config += "}\n"
+		config += "\t}\n"
 	}
 
 	if c := dnsServer.Spec.Cache; c != nil && len(c.Zones) > 0 {

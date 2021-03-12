@@ -19,6 +19,7 @@ package dhcp
 import (
 	"encoding/json"
 	"net"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -107,7 +108,7 @@ func deployment(
 			Env: []corev1.EnvVar{
 				{
 					Name:  "RADVD_CONFIG",
-					Value: radvdConfig.String(),
+					Value: strings.ReplaceAll(radvdConfig.String(), "\t", "  "),
 				},
 			},
 			Command: []string{

@@ -77,7 +77,7 @@ func TestConfig_String(t *testing.T) {
 			},
 			expected: `interface eth0
 {
-}
+};
 `,
 		},
 		{
@@ -90,11 +90,11 @@ func TestConfig_String(t *testing.T) {
 			},
 			expected: `interface eth0
 {
-}
+};
 
 interface eth1
 {
-}
+};
 `,
 		},
 	}
@@ -121,7 +121,7 @@ func TestPrefix_String(t *testing.T) {
 			expected: `	prefix 2001:db8::/32
 	{
 		AdvOnLink on;
-	}
+	};
 `,
 		},
 		{
@@ -135,7 +135,7 @@ func TestPrefix_String(t *testing.T) {
 		AdvValidLifetime 172800;
 		AdvPreferredLifetime 86400;
 		Base6to4Interface eth0;
-	}
+	};
 `,
 		},
 	}
@@ -164,7 +164,7 @@ func TestRDNSS_String(t *testing.T) {
 			},
 			expected: `	RDNSS 2001:db8::1 2001:db8::2 2001:db8::3
 	{
-	}
+	};
 `,
 		},
 		{
@@ -173,7 +173,7 @@ func TestRDNSS_String(t *testing.T) {
 			expected: `	RDNSS 2001:db8::1 2001:db8::2 2001:db8::3
 	{
 		AdvRDNSSLifetime 0;
-	}
+	};
 `,
 		},
 	}
@@ -200,7 +200,7 @@ func TestRoute_String(t *testing.T) {
 			},
 			expected: `	route 2001:db8::/32
 	{
-	}
+	};
 `,
 		},
 		{
@@ -210,7 +210,7 @@ func TestRoute_String(t *testing.T) {
 	{
 		AdvRouteLifetime 14400;
 		AdvRoutePreference high;
-	}
+	};
 `,
 		},
 	}
@@ -229,7 +229,7 @@ func TestClients_String(t *testing.T) {
 		2001:db8::1;
 		2001:db8::2;
 		2001:db8::3;
-	}
+	};
 `
 
 	assert.Equal(t, expected, clients.String())
@@ -297,26 +297,26 @@ func TestInterface_String(t *testing.T) {
 		AdvValidLifetime 172800;
 		AdvPreferredLifetime 86400;
 		Base6to4Interface eth0;
-	}
+	};
 
 	route 2001:db8::/32
 	{
 		AdvRouteLifetime 14400;
 		AdvRoutePreference high;
-	}
+	};
 
 	RDNSS 2001:db8::1 2001:db8::2 2001:db8::3
 	{
 		AdvRDNSSLifetime 0;
-	}
+	};
 
 	clients
 	{
 		2001:db8::1;
 		2001:db8::2;
 		2001:db8::3;
-	}
-}
+	};
+};
 `
 
 	assert.Equal(t, expected, iface.String())

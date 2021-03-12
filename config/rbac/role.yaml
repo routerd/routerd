@@ -7,6 +7,22 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - dns.routerd.net
+  resources:
+  - dnsservers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - dns.routerd.net
+  resources:
+  - dnsservers/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
   - dhcp.routerd.net
   resources:
   - dhcpservers
@@ -52,6 +68,7 @@ rules:
   - ""
   resources:
   - serviceaccounts
+  - configmaps
   verbs:
   - create
   - delete
