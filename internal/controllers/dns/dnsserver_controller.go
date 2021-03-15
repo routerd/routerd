@@ -236,7 +236,7 @@ func (r *DNSServerReconciler) Reconcile(
 	}
 
 	dnsServer.Status.ObservedGeneration = dnsServer.Generation
-	if currentDeploy.Status.AvailableReplicas == deploy.Status.Replicas {
+	if currentDeploy.Status.AvailableReplicas == currentDeploy.Status.Replicas {
 		dnsServer.Status.Phase = "Ready"
 		meta.SetStatusCondition(&dnsServer.Status.Conditions, metav1.Condition{
 			Type:               dnsv1alpha1.DNSServerAvailable,
