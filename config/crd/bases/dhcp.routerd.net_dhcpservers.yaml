@@ -17,10 +17,10 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .status.ipv4.ippool.name
+    - jsonPath: .spec.ipv4.pool.name
       name: IPv4 Pool
       type: string
-    - jsonPath: .status.ipv6.ippool.name
+    - jsonPath: .spec.ipv6.pool.name
       name: IPv6 Pool
       type: string
     - jsonPath: .status.phase

@@ -78,8 +78,8 @@ type LocalObjectReference struct {
 // DHCPServer is the Schema for the dhcpservers API
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="IPv4 Pool",type="string",JSONPath=".status.ipv4.ippool.name"
-// +kubebuilder:printcolumn:name="IPv6 Pool",type="string",JSONPath=".status.ipv6.ippool.name"
+// +kubebuilder:printcolumn:name="IPv4 Pool",type="string",JSONPath=".spec.ipv4.pool.name"
+// +kubebuilder:printcolumn:name="IPv6 Pool",type="string",JSONPath=".spec.ipv6.pool.name"
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.phase"
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 type DHCPServer struct {
