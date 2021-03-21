@@ -18,20 +18,16 @@ package dhcp
 
 import (
 	"encoding/json"
-	"net"
-	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/pointer"
 	utilpointer "k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	dhcpv1alpha1 "routerd.net/routerd/apis/dhcp/v1alpha1"
 	ipamv1alpha1 "routerd.net/routerd/apis/ipam/v1alpha1"
-	"routerd.net/routerd/internal/radvd"
 	"routerd.net/routerd/internal/version"
 )
 
@@ -57,7 +53,6 @@ func deployment(
 			},
 		},
 	}
-	var containers []corev1.Container
 
 	if dhcpServer.Spec.IPv4 != nil {
 		env = append(env, corev1.EnvVar{
@@ -71,56 +66,7 @@ func deployment(
 				Name:  "DHCP_ENABLE_IPv6",
 				Value: "True",
 			})
-
-		_, subnet, _ := net.ParseCIDR(ipv6Pool.Spec.CIDR)
-		gateway := net.IPNet{
-			IP:   net.ParseIP(dhcpServer.Spec.IPv6.Gateway),
-			Mask: subnet.Mask,
-		}
-		radvdConfig := radvd.Config{
-			Interfaces: []radvd.Interface{
-				{
-					Name:               "net1",
-					AdvSendAdvert:      pointer.BoolPtr(true),
-					AdvManagedFlag:     pointer.BoolPtr(true),
-					AdvOtherConfigFlag: pointer.BoolPtr(true),
-
-					Prefix: []radvd.Prefix{
-						{
-							Prefix:        gateway,
-							AdvOnLink:     pointer.BoolPtr(true),
-							AdvRouterAddr: pointer.BoolPtr(true),
-						},
-					},
-				},
-			},
-		}
-
-		containers = append(containers, corev1.Container{
-			ImagePullPolicy: corev1.PullAlways,
-			Name:            "radvd",
-			Image:           "quay.io/routerd/radvd:" + version.Version,
-			SecurityContext: &corev1.SecurityContext{
-				Capabilities: &corev1.Capabilities{
-					Add: []corev1.Capability{"NET_RAW"},
-				},
-			},
-			Env: []corev1.EnvVar{
-				{
-					Name:  "RADVD_CONFIG",
-					Value: strings.ReplaceAll(radvdConfig.String(), "\t", "  "),
-				},
-			},
-			Command: []string{
-				"bin/ash", "-c", `echo "$RADVD_CONFIG" > /etc/radvd.conf && exec radvd -n`},
-		})
 	}
-	containers = append(containers, corev1.Container{
-		ImagePullPolicy: corev1.PullAlways,
-		Name:            "dhcp-server",
-		Image:           "quay.io/routerd/routerd-dhcp:" + version.Version,
-		Env:             env,
-	})
 
 	var netconfigIPs []string
 	if ipv4Lease != nil {
@@ -161,7 +107,14 @@ func deployment(
 				},
 				Spec: corev1.PodSpec{
 					ServiceAccountName: sa.Name,
-					Containers:         containers,
+					Containers: []corev1.Container{
+						{
+							ImagePullPolicy: corev1.PullAlways,
+							Name:            "dhcp-server",
+							Image:           "quay.io/routerd/routerd-dhcp:" + version.Version,
+							Env:             env,
+						},
+					},
 				},
 			},
 		},
