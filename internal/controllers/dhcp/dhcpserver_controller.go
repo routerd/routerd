@@ -101,6 +101,9 @@ func (r *DHCPServerReconciler) Reconcile(
 		},
 	}
 	addCommonLabels(sa.Labels, dhcpServer)
+	if err := controllerutil.SetControllerReference(dhcpServer, sa, r.Scheme); err != nil {
+		return res, err
+	}
 	_, err = reconcile.ServiceAccount(ctx, r.Client, sa)
 	if err != nil {
 		return res, fmt.Errorf("reconcile ServiceAccount: %w", err)
@@ -123,6 +126,9 @@ func (r *DHCPServerReconciler) Reconcile(
 			Kind:     "ClusterRole",
 			Name:     "routerd-dhcp-role",
 		},
+	}
+	if err := controllerutil.SetControllerReference(dhcpServer, roleBinding, r.Scheme); err != nil {
+		return res, err
 	}
 	addCommonLabels(roleBinding.Labels, dhcpServer)
 	_, err = reconcile.RoleBinding(ctx, r.Client, roleBinding)

@@ -86,6 +86,9 @@ func (r *DNSServerReconciler) Reconcile(
 			Namespace: dnsServer.Namespace,
 		},
 	}
+	if err := controllerutil.SetControllerReference(dnsServer, sa, r.Scheme); err != nil {
+		return res, err
+	}
 	_, err = reconcile.ServiceAccount(ctx, r.Client, sa)
 	if err != nil {
 		return res, fmt.Errorf("reconcile ServiceAccount: %w", err)
@@ -107,6 +110,9 @@ func (r *DNSServerReconciler) Reconcile(
 			Kind:     "ClusterRole",
 			Name:     "routerd-dns-role",
 		},
+	}
+	if err := controllerutil.SetControllerReference(dnsServer, roleBinding, r.Scheme); err != nil {
+		return res, err
 	}
 	_, err = reconcile.RoleBinding(ctx, r.Client, roleBinding)
 	if err != nil {
