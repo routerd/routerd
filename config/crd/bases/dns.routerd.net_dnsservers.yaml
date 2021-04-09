@@ -95,40 +95,6 @@ spec:
                 - policy
                 - to
                 type: object
-              networkAttachment:
-                description: NetworkAttachment configures how the DNS Server is attached
-                  to a network.
-                properties:
-                  ipv4Pool:
-                    description: References an IPv4Pool to acquire the IP Adress for
-                      this DNS server from.
-                    properties:
-                      name:
-                        type: string
-                    required:
-                    - name
-                    type: object
-                  ipv6Pool:
-                    description: References an IPv6Pool to acquire the IP Adress for
-                      this DNS server from.
-                    properties:
-                      name:
-                        type: string
-                    required:
-                    - name
-                    type: object
-                  networkAttachmentDefinition:
-                    description: References a NetworkAttachmentDefinition to attach
-                      the DNSServer to a network.
-                    properties:
-                      name:
-                        type: string
-                    required:
-                    - name
-                    type: object
-                required:
-                - networkAttachmentDefinition
-                type: object
               recordSelector:
                 description: Limits the delivered Zones and RecordSets.
                 properties:
@@ -173,8 +139,6 @@ spec:
                       are ANDed.
                     type: object
                 type: object
-            required:
-            - networkAttachment
             type: object
           status:
             description: DNSServerStatus defines the observed state of DNSServer

@@ -28,17 +28,6 @@ type DNSServerSpec struct {
 	Cache *DNSCache `json:"cache,omitempty"`
 	// Limits the delivered Zones and RecordSets.
 	RecordSelector metav1.LabelSelector `json:"recordSelector,omitempty"`
-	// NetworkAttachment configures how the DNS Server is attached to a network.
-	NetworkAttachment NetworkAttachment `json:"networkAttachment"`
-}
-
-type NetworkAttachment struct {
-	// References a NetworkAttachmentDefinition to attach the DNSServer to a network.
-	NetworkAttachmentDefinition LocalObjectReference `json:"networkAttachmentDefinition"`
-	// References an IPv4Pool to acquire the IP Adress for this DNS server from.
-	IPv4Pool LocalObjectReference `json:"ipv4Pool,omitempty"`
-	// References an IPv6Pool to acquire the IP Adress for this DNS server from.
-	IPv6Pool LocalObjectReference `json:"ipv6Pool,omitempty"`
 }
 
 type DNSForward struct {
