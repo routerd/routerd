@@ -3,6 +3,8 @@ module routerd.net/routerd
 go 1.15
 
 require (
+	github.com/containernetworking/cni v0.8.1
+	github.com/containernetworking/plugins v0.9.1
 	github.com/coredns/caddy v1.1.0
 	github.com/coredns/coredns v1.8.3
 	github.com/go-logr/logr v0.4.0
