@@ -26,8 +26,11 @@ type DHCPServerSpec struct {
 	IPv4 *DHCPServerIPv4 `json:"ipv4,omitempty"`
 	// DHCP IPv6 specific settings.
 	IPv6 *DHCPServerIPv6 `json:"ipv6,omitempty"`
-	// References a network attachment definition to attach the DHCP Server Pod to a network.
-	NetworkAttachmentDefinition LocalObjectReference `json:"networkAttachmentDefinition"`
+	// Name of the interface on the host node to bind the DHCP Server to.
+	HostInterfaceName string `json:"hostInterfaceName"`
+	// NodeSelector limits the nodes that can run the DHCP Server pods.
+	// Only MatchLabels is supported.
+	NodeSelector metav1.LabelSelector `json:"nodeSelector,omitempty"`
 }
 
 // DHCP Server Settings for IPv4.
