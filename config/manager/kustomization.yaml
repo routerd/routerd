@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: quay.io/routerd/routerd
-  newTag: dhcp-revamp-faaf59c
+  newTag: dhcp-revamp-fixes-aa7031d
