@@ -68,10 +68,6 @@ type DHCPServerStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 	// Human readable status aggregated from conditions.
 	Phase string `json:"phase,omitempty"`
-	// IPv4 Address the DHCP server is available at.
-	IPv4Address string `json:"ipv4Address,omitempty"`
-	// IPv6 Address the DHCP server is available at.
-	IPv6Address string `json:"ipv6Address,omitempty"`
 }
 
 type LocalObjectReference struct {
