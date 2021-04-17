@@ -3,10 +3,35 @@ kind: DNSServer
 metadata:
   name: sample
 spec:
-  networkAttachment:
-    networkAttachmentDefinition:
-      name: br1-static
-    ipv4Pool:
-      name: sample
-    ipv6Pool:
-      name: sample
+  replicas: 2
+  forward:
+    # forward everything
+    from: "."
+    # Google DNS
+    to: ["8.8.8.8"]
+    except: ["local"]
+    # Loadbalancing policy for multiple addresses in 'to'
+    policy: Random
+---
+# Example Service to expose DNS Server on some network.
+# For both IPv4 and IPv6 Kubernetes needs to be configured for DualStack networking.
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample
+spec:
+  ipFamilyPolicy: PreferDualStack
+  selector:
+    app.kubernetes.io/name: routerd-dns
+    app.kubernetes.io/managed-by: routerd
+    app.kubernetes.io/instance: sample
+  ports:
+    - protocol: TCP
+      port: 53
+      targetPort: 53
+    - protocol: UDP
+      port: 53
+      targetPort: 53
+  externalIPs:
+    - 172.16.254.1
+    - 2001:0db8:85a3:0000:0000:8a2e:0370:7334

@@ -22,23 +22,17 @@ import (
 
 // DNSServerSpec defines the desired state of DNSServer
 type DNSServerSpec struct {
+	// Replica count, defaults to 1.
+	// +kubebuilder:default=1
+	Replicas *int32 `json:"replicas,omitempty"`
 	// Configures forwarding queries to other DNS servers.
 	Forward *DNSForward `json:"forward,omitempty"`
 	// Enables caching of records.
 	Cache *DNSCache `json:"cache,omitempty"`
-	// Limits the delivered Zones and RecordSets.
-	RecordSelector metav1.LabelSelector `json:"recordSelector,omitempty"`
-	// NetworkAttachment configures how the DNS Server is attached to a network.
-	NetworkAttachment NetworkAttachment `json:"networkAttachment"`
-}
-
-type NetworkAttachment struct {
-	// References a NetworkAttachmentDefinition to attach the DNSServer to a network.
-	NetworkAttachmentDefinition LocalObjectReference `json:"networkAttachmentDefinition"`
-	// References an IPv4Pool to acquire the IP Adress for this DNS server from.
-	IPv4Pool LocalObjectReference `json:"ipv4Pool,omitempty"`
-	// References an IPv6Pool to acquire the IP Adress for this DNS server from.
-	IPv6Pool LocalObjectReference `json:"ipv6Pool,omitempty"`
+	// Selects Zones for this DNS Server.
+	ZoneSelector metav1.LabelSelector `json:"zoneSelector,omitempty"`
+	// Selects RecordSets for this DNS Server.
+	RecordSetSelector metav1.LabelSelector `json:"recordSetSelector,omitempty"`
 }
 
 type DNSForward struct {

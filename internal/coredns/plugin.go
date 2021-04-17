@@ -19,6 +19,7 @@ package coredns
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/coredns/coredns/plugin"
@@ -26,6 +27,7 @@ import (
 	"github.com/coredns/coredns/request"
 	"github.com/go-logr/logr"
 	"github.com/miekg/dns"
+	"k8s.io/apimachinery/pkg/labels"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -45,18 +47,23 @@ type routerd struct {
 	zones     map[string]*file.Zone
 	zoneNames plugin.Zones
 	zoneMux   sync.RWMutex
+
+	zoneSelector, recordSetSelector labels.Selector
 }
 
 var _ plugin.Handler = (*routerd)(nil)
 
 func newRouterdPlugin(
 	client client.Client, log logr.Logger,
+	zoneSelector, recordSetSelector labels.Selector,
 ) *routerd {
 	return &routerd{
 		client: client,
 		log:    log,
 
-		zones: map[string]*file.Zone{},
+		zones:             map[string]*file.Zone{},
+		zoneSelector:      zoneSelector,
+		recordSetSelector: recordSetSelector,
 	}
 }
 
@@ -117,8 +124,23 @@ func (p *routerd) Reconcile(ctx context.Context, req ctrl.Request) (
 	// so we ignore it and rebuild our whole config from cache.
 
 	zoneList := &dnsv1alpha1.ZoneList{}
-	if err := p.client.List(ctx, zoneList); err != nil {
+	if err := p.client.List(
+		ctx, zoneList,
+		client.MatchingLabelsSelector{
+			Selector: p.zoneSelector,
+		},
+	); err != nil {
 		return result, err
+	}
+
+	recordSetList := &dnsv1alpha1.RecordSetList{}
+	if err := p.client.List(
+		ctx, recordSetList,
+		client.MatchingLabelsSelector{
+			Selector: p.recordSetSelector,
+		},
+	); err != nil {
+		return result, fmt.Errorf("listing RecordSets: %w", err)
 	}
 
 	var (
@@ -141,12 +163,12 @@ func (p *routerd) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 
 		// Add other records
-		recordSetList := &dnsv1alpha1.RecordSetList{}
-		if err := p.client.List(ctx, recordSetList); err != nil {
-			return result, fmt.Errorf("listing RecordSets: %w", err)
-		}
-
 		for _, recordSet := range recordSetList.Items {
+			if strings.HasSuffix(recordSet.DNSName, zone.Name) {
+				// skip record sets in another zone
+				continue
+			}
+
 			values := recordSet.Values()
 			if len(values) == 0 {
 				// skip record sets without records
