@@ -152,6 +152,7 @@ func (r *DNSServerReconciler) Reconcile(
 									Name:  "ROUTERD_DNSSERVER_NAME",
 									Value: dnsServer.Name,
 								},
+								// these are just set to force a redeploy on change
 								{
 									Name:  "ROUTERD_DNSSERVER_ZONE_SELECTOR",
 									Value: dnsServer.Spec.ZoneSelector.String(),

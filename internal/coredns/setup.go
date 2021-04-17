@@ -17,16 +17,20 @@ limitations under the License.
 package coredns
 
 import (
+	"context"
 	"fmt"
 	"os"
 
 	"github.com/coredns/caddy"
 	"github.com/coredns/coredns/core/dnsserver"
 	"github.com/coredns/coredns/plugin"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	dnsv1alpha1 "routerd.net/routerd/apis/dns/v1alpha1"
@@ -68,20 +72,37 @@ func setup(c *caddy.Controller) error {
 		// disable metrics as we are not running any workers.
 		MetricsBindAddress: "0",
 		Namespace:          namespace,
+		ClientDisableCacheFor: []client.Object{
+			// Needed so we can query DNSServer on startup,
+			// without having to wait for the cache to boot up.
+			&dnsv1alpha1.DNSServer{},
+		},
 	})
 	exitOnError("creating manager", err)
 
 	// parse selectors
-	var zoneSelector labels.Selector
-	if zoneSelectorString := os.Getenv("ROUTERD_DNSSERVER_ZONE_SELECTOR"); len(zoneSelectorString) > 0 {
-		zoneSelector, err = labels.Parse(zoneSelectorString)
-		exitOnError("parsing ROUTERD_DNSSERVER_ZONE_SELECTOR", err)
+	var (
+		zoneSelector      labels.Selector
+		recordSetSelector labels.Selector
+	)
+	dnsServer := &dnsv1alpha1.DNSServer{}
+	if err := mgr.GetClient().Get(
+		context.Background(),
+		types.NamespacedName{
+			Name:      os.Getenv("ROUTERD_DNSSERVER_NAME"),
+			Namespace: namespace,
+		},
+		dnsServer,
+	); err != nil {
+		exitOnError("getting DNSServer object", err)
 	}
-
-	var recordSetSelector labels.Selector
-	if recordSetSelectorString := os.Getenv("ROUTERD_DNSSERVER_RECORDSET_SELECTOR"); len(recordSetSelectorString) > 0 {
-		recordSetSelector, err = labels.Parse(recordSetSelectorString)
-		exitOnError("parsing ROUTERD_DNSSERVER_ZONE_SELECTOR", err)
+	zoneSelector, err = metav1.LabelSelectorAsSelector(&dnsServer.Spec.ZoneSelector)
+	if err != nil {
+		exitOnError("parsing zoneSelector", err)
+	}
+	recordSetSelector, err = metav1.LabelSelectorAsSelector(&dnsServer.Spec.RecordSetSelector)
+	if err != nil {
+		exitOnError("parsing recordSetSelector", err)
 	}
 
 	// create plugin
