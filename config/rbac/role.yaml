@@ -1,4 +1,3 @@
-
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -6,129 +5,129 @@ metadata:
   creationTimestamp: null
   name: manager-role
 rules:
-- apiGroups:
-  - dns.routerd.net
-  resources:
-  - dnsservers
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - dns.routerd.net
-  resources:
-  - dnsservers/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - dhcp.routerd.net
-  resources:
-  - dhcpservers
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - dhcp.routerd.net
-  resources:
-  - dhcpservers/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ipam.routerd.net
-  resources:
-  - ipv4leases
-  - ipv6leases
-  - ipv4pools
-  - ipv6pools
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ipam.routerd.net
-  resources:
-  - ipv4leases/status
-  - ipv6leases/status
-  - ipv4pools/status
-  - ipv6pools/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - serviceaccounts
-  - configmaps
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - apps
-  resources:
-  - deployments
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
-  - rolebindings
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - k8s.cni.cncf.io
-  resources:
-  - network-attachment-definitions
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - dns.routerd.net
-  resources:
-  - recordsets
-  - zones
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ipam.routerd.net
-  resources:
-  - recordsets/status
-  - zones/status
-  verbs:
-  - get
-  - patch
+  - apiGroups:
+      - dns.routerd.net
+    resources:
+      - dnsservers
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - dns.routerd.net
+    resources:
+      - dnsservers/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - dhcp.routerd.net
+    resources:
+      - dhcpservers
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - dhcp.routerd.net
+    resources:
+      - dhcpservers/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - ipam.routerd.net
+    resources:
+      - ipv4leases
+      - ipv6leases
+      - ipv4pools
+      - ipv6pools
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ipam.routerd.net
+    resources:
+      - ipv4leases/status
+      - ipv6leases/status
+      - ipv4pools/status
+      - ipv6pools/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - serviceaccounts
+      - configmaps
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - rolebindings
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - k8s.cni.cncf.io
+    resources:
+      - network-attachment-definitions
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - update
+      - watch
+  - apiGroups:
+      - dns.routerd.net
+    resources:
+      - recordsets
+      - zones
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ipam.routerd.net
+    resources:
+      - recordsets/status
+      - zones/status
+    verbs:
+      - get
+      - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -136,52 +135,52 @@ metadata:
   creationTimestamp: null
   name: dhcp-role
 rules:
-- apiGroups:
-  - dhcp.routerd.net
-  resources:
-  - dhcpservers
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - dhcp.routerd.net
-  resources:
-  - dhcpservers/status
-  verbs:
-  - get
-- apiGroups:
-  - ipam.routerd.net
-  resources:
-  - ipv4pools
-  - ipv6pools
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ipam.routerd.net
-  resources:
-  - ipv4leases
-  - ipv6leases
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ipam.routerd.net
-  resources:
-  - ipv4leases/status
-  - ipv6leases/status
-  - ipv4pools/status
-  - ipv6pools/status
-  verbs:
-  - get
-  - patch
+  - apiGroups:
+      - dhcp.routerd.net
+    resources:
+      - dhcpservers
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - dhcp.routerd.net
+    resources:
+      - dhcpservers/status
+    verbs:
+      - get
+  - apiGroups:
+      - ipam.routerd.net
+    resources:
+      - ipv4pools
+      - ipv6pools
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ipam.routerd.net
+    resources:
+      - ipv4leases
+      - ipv6leases
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ipam.routerd.net
+    resources:
+      - ipv4leases/status
+      - ipv6leases/status
+      - ipv4pools/status
+      - ipv6pools/status
+    verbs:
+      - get
+      - patch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -189,20 +188,21 @@ metadata:
   creationTimestamp: null
   name: dns-role
 rules:
-- apiGroups:
-  - dns.routerd.net
-  resources:
-  - recordsets
-  - zones
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ipam.routerd.net
-  resources:
-  - recordsets/status
-  - zones/status
-  verbs:
-  - get
-  - patch
+  - apiGroups:
+      - dns.routerd.net
+    resources:
+      - recordsets
+      - zones
+      - dnsservers
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ipam.routerd.net
+    resources:
+      - recordsets/status
+      - zones/status
+    verbs:
+      - get
+      - patch
