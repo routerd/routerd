@@ -28,7 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilpointer "k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -121,13 +120,9 @@ func (r *DNSServerReconciler) Reconcile(
 			Labels:    map[string]string{},
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: utilpointer.Int32Ptr(1),
+			Replicas: dnsServer.Spec.Replicas,
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{},
-			},
-			Strategy: appsv1.DeploymentStrategy{
-				// We only want a single instance running at any given time.
-				Type: appsv1.RecreateDeploymentStrategyType,
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
@@ -158,8 +153,12 @@ func (r *DNSServerReconciler) Reconcile(
 									Value: dnsServer.Name,
 								},
 								{
-									Name:  "ROUTERD_DNSSERVER_SELECTOR",
-									Value: dnsServer.Spec.RecordSelector.String(),
+									Name:  "ROUTERD_DNSSERVER_ZONE_SELECTOR",
+									Value: dnsServer.Spec.ZoneSelector.String(),
+								},
+								{
+									Name:  "ROUTERD_DNSSERVER_RECORDSET_SELECTOR",
+									Value: dnsServer.Spec.RecordSetSelector.String(),
 								},
 							},
 							VolumeMounts: []corev1.VolumeMount{

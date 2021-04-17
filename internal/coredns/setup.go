@@ -23,6 +23,7 @@ import (
 	"github.com/coredns/caddy"
 	"github.com/coredns/coredns/core/dnsserver"
 	"github.com/coredns/coredns/plugin"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -52,12 +53,6 @@ func setup(c *caddy.Controller) error {
 	var (
 		// Kubernetes Namespace this DHCP Server is deployed in.
 		namespace = os.Getenv("KUBERNETES_NAMESPACE")
-		// // Interface Name the DHCP Server should bind to.
-		// bindInterface = os.Getenv("DHCP_BIND_INTERFACE")
-		// // Name of the DHCPServer object in Kubernetes.
-		// dhcpServerName = os.Getenv("DHCP_SERVER_NAME")
-		// dhcpEnableIPv4 = os.Getenv("DHCP_ENABLE_IPv4")
-		// dhcpEnableIPv6 = os.Getenv("DHCP_ENABLE_IPv6")
 	)
 
 	if len(namespace) == 0 {
@@ -76,7 +71,22 @@ func setup(c *caddy.Controller) error {
 	})
 	exitOnError("creating manager", err)
 
-	routerdPlugin := newRouterdPlugin(mgr.GetClient(), ctrl.Log.WithName("dns"))
+	// parse selectors
+	var zoneSelector labels.Selector
+	if zoneSelectorString := os.Getenv("ROUTERD_DNSSERVER_ZONE_SELECTOR"); len(zoneSelectorString) > 0 {
+		zoneSelector, err = labels.Parse(zoneSelectorString)
+		exitOnError("parsing ROUTERD_DNSSERVER_ZONE_SELECTOR", err)
+	}
+
+	var recordSetSelector labels.Selector
+	if recordSetSelectorString := os.Getenv("ROUTERD_DNSSERVER_RECORDSET_SELECTOR"); len(recordSetSelectorString) > 0 {
+		recordSetSelector, err = labels.Parse(recordSetSelectorString)
+		exitOnError("parsing ROUTERD_DNSSERVER_ZONE_SELECTOR", err)
+	}
+
+	// create plugin
+	routerdPlugin := newRouterdPlugin(
+		mgr.GetClient(), ctrl.Log.WithName("dns"), zoneSelector, recordSetSelector)
 	if err := routerdPlugin.SetupWithManager(mgr); err != nil {
 		exitOnError("unable to create dns controller", err)
 	}
