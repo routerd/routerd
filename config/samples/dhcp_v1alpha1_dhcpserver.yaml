@@ -3,33 +3,21 @@ kind: DHCPServer
 metadata:
   name: sample
 spec:
-
   ipv4:
     pool:
       name: sample
-    # subnet: 172.20.0.0/24
     gateway: 192.168.250.1
-    # range:
-    #   start: 172.20.0.34
-    #   stop: 172.20.0.240
     nameServers:
-    - 192.168.250.1
+      - 192.168.250.1
 
   ipv6:
     pool:
       name: sample
-    # subnet: "fd9c:fd74:6b8d:1020::/64"
     gateway: "fde4:fa92:1362:78a7::1"
     nameServers:
-    - "fde4:fa92:1362:78a7::1"
-    # range:
-    #   start: fd9c:fd74:6b8d:1020::5
-    #   stop: fd9c:fd74:6b8d:1020:ffff:ffff:ffff:ffff
+      - "fde4:fa92:1362:78a7::1"
 
-  networkAttachment:
-    type: Bridge
-    bridge:
-      name: br1
+  hostInterfaceName: br1
 ---
 apiVersion: ipam.routerd.net/v1alpha1
 kind: IPv4Pool

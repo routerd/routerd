@@ -164,7 +164,7 @@ func (p *routerd) Reconcile(ctx context.Context, req ctrl.Request) (
 
 		// Add other records
 		for _, recordSet := range recordSetList.Items {
-			if strings.HasSuffix(recordSet.DNSName, zone.Name) {
+			if !strings.HasSuffix(recordSet.DNSName, zone.Name) {
 				// skip record sets in another zone
 				continue
 			}

@@ -30,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	utilpointer "k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -37,6 +38,7 @@ import (
 	dhcpv1alpha1 "routerd.net/routerd/apis/dhcp/v1alpha1"
 	ipamv1alpha1 "routerd.net/routerd/apis/ipam/v1alpha1"
 	"routerd.net/routerd/internal/reconcile"
+	"routerd.net/routerd/internal/version"
 )
 
 // DHCPServerReconciler reconciles a DHCPServer object
@@ -82,16 +84,6 @@ func (r *DHCPServerReconciler) Reconcile(
 	}
 
 	// Phase 3.
-	// Lease IP addresses for the DHCP Server
-	ipv4DHCPLease, ipv6DHCPLease, stop, err := r.ensureIPLeases(ctx, dhcpServer, ipv4Pool, ipv6Pool)
-	if err != nil {
-		return res, fmt.Errorf("ensuring dhcp server IPLeases: %w", err)
-	} else if stop {
-		// we are retriggered by watching IPLeases
-		return res, nil
-	}
-
-	// Phase 4.
 	// Reconcile DHCP Server deployment
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
@@ -137,7 +129,7 @@ func (r *DHCPServerReconciler) Reconcile(
 	}
 
 	deploy, stop, err := r.ensureDeployment(
-		ctx, dhcpServer, ipv4DHCPLease, ipv6DHCPLease, ipv6Pool, sa)
+		ctx, dhcpServer, ipv6Pool, sa)
 	if err != nil {
 		return res, err
 	} else if stop {
@@ -328,92 +320,6 @@ func (r *DHCPServerReconciler) ensureGatewayIPLeases(
 	return false, nil
 }
 
-func (r *DHCPServerReconciler) ensureIPLeases(
-	ctx context.Context, dhcpServer *dhcpv1alpha1.DHCPServer,
-	ipv4Pool *ipamv1alpha1.IPv4Pool, ipv6Pool *ipamv1alpha1.IPv6Pool,
-) (
-	ipv4Lease *ipamv1alpha1.IPv4Lease,
-	ipv6Lease *ipamv1alpha1.IPv6Lease,
-	stop bool,
-	err error,
-) {
-	ipv4Lease, err = r.ensureIPv4Lease(ctx, dhcpServer, ipv4Pool)
-	if err != nil {
-		return nil, nil, false, fmt.Errorf("ensuring IPv4Lease for DHCP server: %w", err)
-	}
-	ipv6Lease, err = r.ensureIPv6Lease(ctx, dhcpServer, ipv6Pool)
-	if err != nil {
-		return nil, nil, false, fmt.Errorf("ensuring IPv6Lease for DHCP server: %w", err)
-	}
-
-	var (
-		unreadyIPLease []string
-		failedIPLease  []string
-	)
-	if ipv4Lease != nil {
-		switch {
-		case meta.IsStatusConditionTrue(
-			ipv4Lease.Status.Conditions, ipamv1alpha1.IPLeaseBound):
-			dhcpServer.Status.IPv4Address = ipv4Lease.Status.Address
-
-		case meta.IsStatusConditionFalse(
-			ipv4Lease.Status.Conditions, ipamv1alpha1.IPLeaseBound):
-			failedIPLease = append(failedIPLease, ipv4Lease.Name)
-
-		default:
-			unreadyIPLease = append(unreadyIPLease, ipv4Lease.Name)
-		}
-	}
-
-	if ipv6Lease != nil {
-		switch {
-		case meta.IsStatusConditionTrue(
-			ipv6Lease.Status.Conditions, ipamv1alpha1.IPLeaseBound):
-			dhcpServer.Status.IPv6Address = ipv6Lease.Status.Address
-
-		case meta.IsStatusConditionFalse(
-			ipv6Lease.Status.Conditions, ipamv1alpha1.IPLeaseBound):
-			failedIPLease = append(failedIPLease, ipv6Lease.Name)
-
-		default:
-			unreadyIPLease = append(unreadyIPLease, ipv6Lease.Name)
-		}
-	}
-
-	if len(failedIPLease) > 0 {
-		// Failed Leasing
-		meta.SetStatusCondition(&dhcpServer.Status.Conditions, metav1.Condition{
-			Type:   dhcpv1alpha1.Available,
-			Status: metav1.ConditionFalse,
-			Reason: "UnboundIP",
-			Message: fmt.Sprintf(
-				"Could not lease IPs for DHCP server: %s",
-				strings.Join(failedIPLease, ", ")),
-			ObservedGeneration: dhcpServer.Generation,
-		})
-		dhcpServer.Status.ObservedGeneration = dhcpServer.Generation
-		dhcpServer.Status.Phase = "Failed"
-		return nil, nil, true, r.Status().Update(ctx, dhcpServer)
-	}
-
-	if len(unreadyIPLease) > 0 {
-		// Unready Lease
-		meta.SetStatusCondition(&dhcpServer.Status.Conditions, metav1.Condition{
-			Type:   dhcpv1alpha1.Available,
-			Status: metav1.ConditionFalse,
-			Reason: "UnboundIP",
-			Message: fmt.Sprintf(
-				"Pending IPLease on DHCP server: %s",
-				strings.Join(unreadyIPLease, ", ")),
-			ObservedGeneration: dhcpServer.Generation,
-		})
-		dhcpServer.Status.ObservedGeneration = dhcpServer.Generation
-		dhcpServer.Status.Phase = "Pending"
-		return nil, nil, true, r.Status().Update(ctx, dhcpServer)
-	}
-	return
-}
-
 // Ensure a Lease for the IPv4 Gateway exists.
 func (r *DHCPServerReconciler) ensureIPv4GatewayLease(
 	ctx context.Context, dhcpServer *dhcpv1alpha1.DHCPServer,
@@ -565,14 +471,77 @@ func (r *DHCPServerReconciler) ensureIPv6Lease(
 func (r *DHCPServerReconciler) ensureDeployment(
 	ctx context.Context,
 	dhcpServer *dhcpv1alpha1.DHCPServer,
-	ipv4Lease *ipamv1alpha1.IPv4Lease,
-	ipv6Lease *ipamv1alpha1.IPv6Lease,
 	ipv6Pool *ipamv1alpha1.IPv6Pool,
 	sa *corev1.ServiceAccount,
 ) (_ *appsv1.Deployment, stop bool, err error) {
-	deploy, err := deployment(r.Scheme, dhcpServer, ipv4Lease, ipv6Lease, ipv6Pool, sa)
-	if err != nil {
-		return nil, false, fmt.Errorf("preparing Deployment: %w", err)
+	env := []corev1.EnvVar{
+		{Name: "DHCP_BIND_INTERFACE", Value: dhcpServer.Spec.HostInterfaceName},
+		{Name: "DHCP_SERVER_NAME", Value: dhcpServer.Name},
+		{
+			Name: "KUBERNETES_NAMESPACE",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{
+					FieldPath: "metadata.namespace",
+				},
+			},
+		},
+	}
+
+	if dhcpServer.Spec.IPv4 != nil {
+		env = append(env, corev1.EnvVar{
+			Name:  "DHCP_ENABLE_IPv4",
+			Value: "True",
+		})
+	}
+	if dhcpServer.Spec.IPv6 != nil {
+		env = append(env,
+			corev1.EnvVar{
+				Name:  "DHCP_ENABLE_IPv6",
+				Value: "True",
+			})
+	}
+
+	deploy := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      dhcpServer.Name + "-dhcp-server",
+			Namespace: dhcpServer.Namespace,
+			Labels:    map[string]string{},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: utilpointer.Int32Ptr(1),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{},
+			},
+			Strategy: appsv1.DeploymentStrategy{
+				// We only want a single instance running at any given time.
+				Type: appsv1.RecreateDeploymentStrategyType,
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{},
+				},
+				Spec: corev1.PodSpec{
+					HostNetwork:        true,
+					NodeSelector:       dhcpServer.Spec.NodeSelector.MatchLabels,
+					ServiceAccountName: sa.Name,
+					Containers: []corev1.Container{
+						{
+							ImagePullPolicy: corev1.PullIfNotPresent,
+							Name:            "dhcp-server",
+							Image:           "quay.io/routerd/routerd-dhcp:" + version.Version,
+							Env:             env,
+						},
+					},
+				},
+			},
+		},
+	}
+	addCommonLabels(deploy.Labels, dhcpServer)
+	addCommonLabels(deploy.Spec.Selector.MatchLabels, dhcpServer)
+	addCommonLabels(deploy.Spec.Template.ObjectMeta.Labels, dhcpServer)
+
+	if err := controllerutil.SetControllerReference(dhcpServer, deploy, r.Scheme); err != nil {
+		return nil, false, err
 	}
 
 	currentDeploy, err := reconcile.Deployment(ctx, r.Client, deploy)
@@ -580,4 +549,22 @@ func (r *DHCPServerReconciler) ensureDeployment(
 		return nil, false, fmt.Errorf("reconciling Deployment: %w", err)
 	}
 	return currentDeploy, false, nil
+}
+
+const (
+	commonNameLabel      = "app.kubernetes.io/name"
+	commonComponentLabel = "app.kubernetes.io/component"
+	commonInstanceLabel  = "app.kubernetes.io/instance"
+	commonManagedByLabel = "app.kubernetes.io/managed-by"
+)
+
+func addCommonLabels(labels map[string]string, dhcpServer *dhcpv1alpha1.DHCPServer) {
+	if labels == nil {
+		return
+	}
+
+	labels[commonNameLabel] = "routed-dhcp"
+	labels[commonComponentLabel] = "dhcp-server"
+	labels[commonManagedByLabel] = "routerd"
+	labels[commonInstanceLabel] = dhcpServer.Name
 }
