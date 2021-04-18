@@ -17,6 +17,7 @@ SHELL=/bin/bash
 
 export CGO_ENABLED:=0
 
+DOCKER_COMMAND?="docker"
 BRANCH=$(shell git rev-parse --abbrev-ref HEAD)
 SHORT_SHA=$(shell git rev-parse --short HEAD)
 VERSION?=${BRANCH}-${SHORT_SHA}
@@ -170,7 +171,7 @@ build-image-radvd:
 	@mkdir -p bin/image/radvd
 	@cp -a config/docker/radvd.Dockerfile bin/image/radvd/Dockerfile
 	@echo building ${IMAGE_ORG}/radvd:${VERSION}
-	@docker build -t ${IMAGE_ORG}/radvd:${VERSION} bin/image/radvd
+	@$(DOCKER_COMMAND) build -t ${IMAGE_ORG}/radvd:${VERSION} bin/image/radvd
 
 .SECONDEXPANSION:
 build-image-%: bin/linux_amd64/$$*
@@ -179,8 +180,8 @@ build-image-%: bin/linux_amd64/$$*
 	@cp -a bin/linux_amd64/$* bin/image/$*
 	@cp -a config/docker/$*.Dockerfile bin/image/$*/Dockerfile
 	@echo building ${IMAGE_ORG}/$*:${VERSION}
-	@docker build -t ${IMAGE_ORG}/$*:${VERSION} bin/image/$*
+	@$(DOCKER_COMMAND) build -t ${IMAGE_ORG}/$*:${VERSION} bin/image/$*
 
 push-image-%: build-image-$$*
-	@docker push ${IMAGE_ORG}/$*:${VERSION}
+	@$(DOCKER_COMMAND) push ${IMAGE_ORG}/$*:${VERSION}
 	@echo pushed ${IMAGE_ORG}/$*:${VERSION}
