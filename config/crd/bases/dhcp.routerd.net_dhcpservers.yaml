@@ -174,12 +174,6 @@ spec:
                   - type
                   type: object
                 type: array
-              ipv4Address:
-                description: IPv4 Address the DHCP server is available at.
-                type: string
-              ipv6Address:
-                description: IPv6 Address the DHCP server is available at.
-                type: string
               observedGeneration:
                 description: The most recent generation observed by the controller.
                 format: int64

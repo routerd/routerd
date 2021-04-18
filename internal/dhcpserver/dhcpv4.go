@@ -160,9 +160,9 @@ func (s *DHCPv4Server) handleRequest(
 		dhcpv4.OptIPAddressLeaseTime(leaseDuration))
 
 	// Server ID
-	serverIP, _, err := net.ParseCIDR(dhcpServer.Status.IPv4Address)
+	serverIP, err := getInterfaceIPv4InCIDR(s.bindInterface, ippool.Spec.CIDR)
 	if err != nil {
-		return fmt.Errorf("error parsing server ip: %w", err)
+		return fmt.Errorf("error getting server ip: %w", err)
 	}
 	resp.UpdateOption(
 		dhcpv4.OptServerIdentifier(serverIP))

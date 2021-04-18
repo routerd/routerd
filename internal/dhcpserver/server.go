@@ -17,10 +17,12 @@ limitations under the License.
 package dhcpserver
 
 import (
+	"errors"
+	"fmt"
 	"net"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8sApiErrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 const (
@@ -42,7 +44,7 @@ type Config struct {
 const (
 	// we poll against the cache, so this number can be very lower
 	leasePollInterval = 100 * time.Millisecond
-	// how long we waat for the lease to be Bound until we give up.
+	// how long we wait for the lease to be Bound until we give up.
 	leaseAcquireTimeout = 2 * time.Second
 )
 
@@ -57,9 +59,54 @@ func stringSliceToIPSlice(ipstrings []string) []net.IP {
 func retryOnConflict(fn func() error) error {
 	for {
 		err := fn()
-		if errors.IsConflict(err) {
+		if k8sApiErrors.IsConflict(err) {
 			continue
 		}
 		return nil
 	}
+}
+
+func getInterfaceIPv4IPs(ifaceName string) ([]net.IP, error) {
+	iface, err := net.InterfaceByName(ifaceName)
+	if err != nil {
+		return nil, fmt.Errorf("could not get interface: %w", err)
+	}
+
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return nil, fmt.Errorf("could not get interface addresses: %w", err)
+	}
+
+	var ips []net.IP
+	for _, addr := range addrs {
+		ip, _, err := net.ParseCIDR(addr.String())
+		if err != nil {
+			return nil, fmt.Errorf("could not parse IP from interface address %w", err)
+		}
+		ips = append(ips, ip)
+	}
+
+	return ips, nil
+}
+
+func getInterfaceIPv4InCIDR(iface string, cidr string) (net.IP, error) {
+	ips, err := getInterfaceIPv4IPs(iface)
+	if err != nil {
+		return nil, err
+	}
+
+	_, netIPNet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("netIPNet: %+v\n", netIPNet)
+
+	for _, ip := range ips {
+		if netIPNet.Contains(ip) {
+			return ip, nil
+		}
+	}
+
+	return nil, errors.New("no ipv4 on the interface matched the given CIDR")
 }
